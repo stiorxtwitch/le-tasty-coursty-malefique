@@ -930,3 +930,43 @@ body {
   0%,100%{background:radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,.75) 100%)}
   50%{background:radial-gradient(ellipse at center, transparent 20%, rgba(80,0,10,.6) 60%, rgba(0,0,0,.9) 100%)}
 }
+
+/* ═══════════════════════════════════════════════
+   FPS 3D MODE — Overrides & additions
+═══════════════════════════════════════════════ */
+
+/* Three.js canvas fills screen */
+#scene-canvas {
+  position:absolute;inset:0;width:100%!important;height:100%!important;
+  cursor:none;
+}
+
+/* Hide 2D-only elements in 3D mode */
+#scene-elements, #hotspots-layer { display:none!important; }
+
+/* Pointer lock cursor */
+#game-screen { cursor:none; }
+
+/* Inventory — float over canvas */
+#inventory-bar {
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.65) 75%,transparent 100%);
+  z-index:20;
+}
+
+/* Notes HUD top right */
+#notes-hud { position:absolute;top:18px;right:20px;z-index:20;pointer-events:none; }
+
+/* Location HUD top left */
+#location-hud { position:absolute;top:18px;left:20px;z-index:20;pointer-events:none; }
+
+/* Tense mode — breathing vignette enhanced */
+.tense-mode #vignette-overlay {
+  animation:tensePulse 2.2s ease-in-out infinite;
+}
+
+/* Dialog box — slightly higher to clear inventory */
+#dialog-box { bottom:88px; }
+
+/* FPS mode: crosshair dot visible over canvas */
+#game-screen canvas { display:block; }
