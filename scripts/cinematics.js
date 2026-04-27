@@ -735,5 +735,5 @@ const Cinematic = (() => {
     animate();
   }
 
-  return { init, play };
+  return { init, play, skip: complete };
 })();
