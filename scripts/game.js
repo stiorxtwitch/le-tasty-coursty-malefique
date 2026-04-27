@@ -1,2313 +1,766 @@
-/* ═══════════════════════════════════════════════
-   GAME.JS — Moteur principal du jeu
-   Nico et le TastyCrousty Maléfique
-   ═══════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════
+   GAME.JS v3 — FPS 3D COMPLET
+   Three.js r128 · ZQSD+Souris · Lampe torche · Collisions AABB
+   ════════════════════════════════════════════════════════════ */
 'use strict';
 
-// ════════════════════════════════════════════════
-// 1. ÉTAT GLOBAL
-// ════════════════════════════════════════════════
-const G = {
-  chapter: 0,       // 0=menu, 1=acte1, 2=acte2, 3=acte3, 4=acte4, 5=final, 6=épilogue
-  scene: '',
-  inventory: [],    // string ids
-  notes: [],        // string ids
-  flags: {},        // boolean flags for story progress
-  selectedItem: null,
-  paused: false,
-  dialogActive: false,
-  puzzleActive: false,
-  sceneCanvas: null,
-  sceneCtx: null,
-  menuCanvas: null,
-  menuCtx: null,
-  screamerCanvas: null,
-  screamerCtx: null,
-  sceneAnim: null,
-  menuAnim: null,
-  flickerTimer: null,
-  heartbeatTimer: null,
-  options: { volume:0.7, brightness:0.8 },
-};
-
-// ════════════════════════════════════════════════
-// 2. NOTES / LORE DOCUMENTS
-// ════════════════════════════════════════════════
-const NOTES_DATA = {
-  note_memo_w1: {
-    title: 'Mémo Interne — TastyCrousty Industries, 2018',
-    body: `À : Tous les employés de l'usine N°4
-De : Dr. Viktor Grunholt, Chef de Projet X-77
-
-Concerne : Lot de production #666
-
-Nous avons rencontré des "anomalies comportementales" dans la cuve de fermentation Nº6.
-Les échantillons du lot #666 présentent une résistance anormale à la péremption — voire une
-CROISSANCE après la date limite de consommation.
-
-Jusqu'à nouvel ordre, NE PAS distribuer le lot #666.
-NE PAS consommer les produits de ce lot.
-NE PAS approcher la cuve Nº6 sans combinaison de niveau 3.
-
-Si vous entendez des bruits provenant des entrepôts de nuit...
-IGNOREZ-LES.
-
-— Dr. V. Grunholt`
-  },
-
-  note_journal_day1: {
-    title: 'Journal de Viktor Grunholt — Jour 1',
-    body: `Aujourd'hui nous avons commencé l'expérience.
-
-L'idée est simple : stabiliser la molécule gustative du TastyCrousty en y ajoutant
-le composé organique X-77. L'objectif était d'en faire le snack le plus addictif du siècle.
-
-Nous n'aurions pas dû.
-
-Le composé X-77 réagit avec les épices de manière... inattendue.
-Les cellules du snack semblent... se diviser.
-
-Bête et discipline scientifique. J'ignore mes instincts.
-Après tout, un crouton ne peut pas être... vivant.
-
-— Grunholt`
-  },
-
-  note_journal_day47: {
-    title: 'Journal de Viktor Grunholt — Jour 47',
-    body: `Ça a poussé.
-
-Ça a poussé pendant la nuit. Personne n'était là.
-Seize boîtes du lot #666 ont été vidées de l'intérieur.
-Les murs de la cuve... portent des marques.
-
-Des employés ont rapporté des bruits. Des craquements.
-Comme si quelque chose machait dans les murs.
-
-J'ai prié pour que ce soit des rats.
-Ce ne sont pas des rats.
-
-L'équipe R&D est réduite à 3 personnes.
-Les autres ont... démissionné. Ou ont disparu.
-
-J'ai contacté le sujet "F" — l'employé 447.
-Il est le seul qui peut encore approcher la cuve sans réaction de l'entité.
-Pour des raisons que nous ne comprenons pas encore.
-
-"Il mange tout", disent ses collègues.
-Peut-être que c'est exactement ce qu'il nous faut.
-
-— Grunholt`
-  },
-
-  note_warning_flamby: {
-    title: 'Dossier Confidentiel — Sujet F (Employé 447)',
-    body: `NOM DE CODE : FLAMBY
-Statut : ACTIF — Protocole Sauveur
-
-L'employé 447, dit "Flamby", présente une résistance biologique inexpliquée
-à toutes les toxines alimentaires connues.
-
-Tests réalisés :
-• A consommé 47 croutons du Lot #666 sans effets.
-• Immunité totale aux composés X-77.
-• Capacité gastrique estimée : HORS NORME.
-
-THÉORIE DU DIRECTEUR SCIENTIFIQUE :
-Si le TastyCrousty Maléfique est une entité alimentaire, seul quelqu'un
-possédant le "Ventre de Fer" peut l'absorber totalement.
-
-Le TastyCrousty se nourrit de la peur des autres.
-Flamby... ne connaît pas la peur. Il connaît l'appétit.
-
-EN CAS DE CATASTROPHE : Contactez Flamby.
-Laissez-le manger.
-
-— Archive R&D, TastyCrousty Industries`
-  },
-
-  note_scratched: {
-    title: 'Griffonnage sur un mur — encre rouge (ou autre chose)',
-    body: `ne partez pas ne partez pas ne partez pas
-il revient quand on éteint les lumières
-il vient quand on mange après minuit
-le snack vous choisit
-vous ne choisissez pas le snack
-
-Flamby sait.
-Trouvez Flamby.
-TROUVEZ FLAMBY avant qu'il ne vous trouve.
-
-ça croque dans le noir
-ça CROQUE DANS LE NOIR`
-  },
-
-  note_ritual: {
-    title: 'Protocole de Confinement — ULTRA SECRET',
-    body: `Pour confiner ou détruire l'entité TastyCrousty (Lot #666) :
-
-1. Rassemblez les trois artefacts de liaison :
-   - Le fragment de cuve originale (Cuve Nº6)
-   - La formule X-77 manuscrite (Bureau du directeur)
-   - Le sceau TastyCrousty originel (Archives)
-
-2. Placez-les dans le cercle rituel de la Chambre Souterraine.
-
-3. ATTENDEZ LE SAUVEUR.
-
-Note : Si le Sauveur est disponible, ignorez les étapes 1-3.
-       Laissez juste Flamby manger.
-       Ça fonctionne.
-
-— Protocole R&D Final, signé illisiblement`
-  }
-};
-
-// ════════════════════════════════════════════════
-// 3. DIALOGUES
-// ════════════════════════════════════════════════
-const DIALOGS = {
-
-  intro_outside: [
-    { speaker:'NICO', portrait:'nico', text:'Byilhan... t\'es sûr de vouloir entrer là-dedans ? Ce fast-food est fermé depuis 2019.' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'T\'inquiète frère ! On cherche juste le TastyCrousty. Il paraît qu\'il y a encore des stocks ici !' },
-    { speaker:'NICO', portrait:'nico', text:'Le TastyCrousty... Ce snack a été retiré de la vente pour des "raisons sanitaires non précisées".' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Justement ! Ça veut dire qu\'il est extra. Les trucs interdits sont toujours les meilleurs.' },
-    { speaker:'NICO', portrait:'nico', text:'Ta logique m\'inquiète. Mais... okay. On entre. Rapidement.' },
-  ],
-
-  act1_dining_enter: [
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Woah. C\'est... dark. Mais l\'ambiance c\'est pas mal en fait.' },
-    { speaker:'NICO', portrait:'nico', text:'Y\'a des tables renversées. Des taches partout. Ça sent bizarre.' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Ça sent le... vieux crouton ? Nostalgique !' },
-    { speaker:'NICO', portrait:'nico', text:'Ça sent quelque chose qui n\'aurait pas dû survivre aussi longtemps.' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Tu dramatises. Cherche la cuisine, y\'a sûrement encore des stocks derrière.' },
-  ],
-
-  act1_stain_investigate: [
-    { speaker:'BYILHAN', portrait:'byilhan', text:'C\'est quoi cette tache ? Du ketchup ?' },
-    { speaker:'NICO', portrait:'nico', text:'Ils ont arrêté le ketchup ici il y a 5 ans...' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'De la sauce tomate alors ?' },
-    { speaker:'NICO', portrait:'nico', text:'Byilhan. Ce n\'est pas de la sauce.' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'...Mouais. Avance.' },
-  ],
-
-  act1_found_memo: [
-    { speaker:'NICO', portrait:'nico', text:'Un mémo... "Ne pas distribuer le lot #666. Ne pas consommer." C\'est quoi ce délire ?' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Lot 666 ? Bro, les gens sont tellement dramatiques avec les superstitions.' },
-    { speaker:'NICO', portrait:'nico', text:'Je garde ça. Ça a l\'air important.' },
-  ],
-
-  act1_kitchen_enter: [
-    { speaker:'BYILHAN', portrait:'byilhan', text:'La cuisine ! Jackpot. Y\'a peut-être des TastyCrousty dans le frigo industriel.' },
-    { speaker:'NICO', portrait:'nico', text:'Le frigo tourne encore ? Mais l\'électricité est coupée normalement...' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Ça marche encore sur le générateur de secours sûrement. Viens voir !' },
-  ],
-
-  act1_freezer_before: [
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Tu ouvres le congélo ou quoi ? Vas-y !' },
-    { speaker:'NICO', portrait:'nico', text:'Il y a une lumière rouge qui clignote derrière. C\'est... normal ?' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'C\'est la lampe de maintenance. Open it !' },
-  ],
-
-  act2_tension_start: [
-    { speaker:'BYILHAN', portrait:'byilhan', text:'...Tu entends ça ?' },
-    { speaker:'NICO', portrait:'nico', text:'Quoi ?' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Ce bruit. Comme si quelque chose... mâchait. Dans les murs.' },
-    { speaker:'NICO', portrait:'nico', text:'Ce sont les canalisations. Ce vieux bâtiment...' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Nico. Les canalisations ne respirent pas.' },
-  ],
-
-  act2_shadow_seen: [
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Attends. Attends. TU AS VU ÇA ?' },
-    { speaker:'NICO', portrait:'nico', text:'Quoi ? Où ?' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'Dans le couloir. Une ombre. Ronde. Avec... des dents.' },
-    { speaker:'NICO', portrait:'nico', text:'Byilhan, calme—' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'JE SUIS CALME ! JE SUIS TRÈS CALME !' },
-  ],
-
-  act2_byilhan_panic: [
-    { speaker:'BYILHAN', portrait:'byilhan', text:'On part. On part MAINTENANT. J\'ai plus envie de TastyCrousty.' },
-    { speaker:'NICO', portrait:'nico', text:'Attends, j\'ai trouvé une note sur un certain "Flamby". Il faut que je comprenne.' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'NICO. Quelque chose me regarde depuis ces ombres.' },
-    { speaker:'NICO', portrait:'nico', text:'T\'es parano...' },
-    { speaker:'BYILHAN', portrait:'byilhan', text:'JE SUIS PAS PARANO !' },
-  ],
-
-  act3_alone_monologue: [
-    { speaker:'NICO', portrait:'nico', text:'Byilhan... je suis désolé.' },
-    { speaker:'NICO', portrait:'nico', text:'J\'aurais dû écouter. Mais maintenant je dois comprendre.' },
-    { speaker:'NICO', portrait:'nico', text:'Pourquoi le TastyCrousty existe. Pourquoi il nous a choisis.' },
-    { speaker:'NICO', portrait:'nico', text:'Et ce "Flamby"... Toutes les notes en parlent. Il doit y avoir un moyen.' },
-  ],
-
-  act3_found_flamby_note: [
-    { speaker:'NICO', portrait:'nico', text:'Flamby. Le Sauveur. "Ventre de fer... immunité totale..." C\'est insensé.' },
-    { speaker:'NICO', portrait:'nico', text:'"Laissez juste Flamby manger." C\'est ça ? La solution c\'est de lui faire manger cette chose ?' },
-    { speaker:'NICO', portrait:'nico', text:'Il faut que je l\'trouve. Il faut que je l\'trouve avant que le TastyCrousty me trouve.' },
-  ],
-
-  act4_flamby_arrives: [
-    { speaker:'???', portrait:'flamby', text:'Eh. T\'as l\'air d\'avoir besoin d\'aide, toi.' },
-    { speaker:'NICO', portrait:'nico', text:'QUI— qui es-tu ? Comment t\'es entré ici ?' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Par la porte du fond. Elle était ouverte. Je m\'appelle Flamby.' },
-    { speaker:'NICO', portrait:'nico', text:'FLAMBY ?! C\'est toi dont parlent toutes les notes ?!' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Probablement. J\'ai une certaine... réputation dans ce milieu.' },
-  ],
-
-  act4_flamby_explains: [
-    { speaker:'FLAMBY', portrait:'flamby', text:'Le TastyCrousty, c\'est une erreur scientifique. Un snack qui a développé une conscience.' },
-    { speaker:'NICO', portrait:'nico', text:'Et... comment tu peux le vaincre en le mangeant ?' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Parce que mon système digestif est une arme de destruction massive. Cliniquement prouvé.' },
-    { speaker:'NICO', portrait:'nico', text:'C\'est... ce n\'est pas une réponse normale.' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Frère, la normale s\'est arrêtée quand un crouton a mangé ton ami. Suis-moi.' },
-  ],
-
-  act4_prep_ritual: [
-    { speaker:'FLAMBY', portrait:'flamby', text:'Pour l\'attirer, il faut recréer les conditions de sa création. Les 3 artefacts dans le cercle.' },
-    { speaker:'NICO', portrait:'nico', text:'J\'ai vu ça dans une note. Le fragment de cuve, la formule, le sceau.' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Exactement. Toi tu places les artefacts. Moi je me prépare psychologiquement.' },
-    { speaker:'NICO', portrait:'nico', text:'Tu te prépares... comment ?' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'J\'ai faim. C\'est mon état optimal.' },
-  ],
-
-  final_confrontation: [
-    { speaker:'FLAMBY', portrait:'flamby', text:'Recule, Nico. Et quelle que chose arrive... fais confiance au ventre.' },
-    { speaker:'NICO', portrait:'nico', text:'Sois... prudent, Flamby.' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'La prudence c\'est pour ceux qui ont peur. Moi j\'ai faim.' },
-  ],
-
-  after_finale: [
-    { speaker:'NICO', portrait:'nico', text:'C\'est... c\'est fini ?' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Hmm. Pas si mal. Un peu trop de sel.' },
-    { speaker:'NICO', portrait:'nico', text:'Tu viens de sauver le monde en mangeant un snack démoniaque.' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Pépère.' },
-    { speaker:'NICO', portrait:'nico', text:'Byilhan... ça valait son sacrifice ?' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Il a été consommé pour une bonne cause. C\'est beau, d\'une certaine façon.' },
-    { speaker:'NICO', portrait:'nico', text:'Je savais pas si je devais pleurer ou rire à ça.' },
-    { speaker:'FLAMBY', portrait:'flamby', text:'Les deux. Toujours les deux.' },
-  ],
-};
-
-// ════════════════════════════════════════════════
-// 4. SCÈNES
-// ════════════════════════════════════════════════
-const SCENES_DEF = {
-
-  fastfood_outside: {
-    name: 'Fast-Food Abandonné — Extérieur',
-    ambient: 'factory',
-    creaks: 'low',
-    chapter: 1,
-    draw: drawScene_outside,
-    hotspots: [
-      { id:'hs_door',      x:'43%', y:'32%', w:'12%', h:'22%', label:'Entrer', action:'go_dining' },
-      { id:'hs_sign',      x:'25%', y:'8%',  w:'50%', h:'14%', label:'Regarder l\'enseigne', action:'look_sign' },
-      { id:'hs_dumpster',  x:'70%', y:'55%', w:'18%', h:'20%', label:'Fouiller la poubelle', action:'search_dumpster' },
-    ],
-    onEnter: function() {
-      if(!G.flags.outside_dialog) {
-        G.flags.outside_dialog = true;
-        scheduleDialog('intro_outside', 800);
-      }
-    }
-  },
-
-  fastfood_dining: {
-    name: 'Salle à Manger — TastyCrousty',
-    ambient: 'factory',
-    creaks: 'low',
-    chapter: 1,
-    draw: drawScene_dining,
-    hotspots: [
-      { id:'hs_counter',   x:'30%', y:'35%', w:'18%', h:'20%', label:'Fouiller le comptoir', action:'search_counter' },
-      { id:'hs_menuboard', x:'55%', y:'12%', w:'20%', h:'18%', label:'Lire le menu', action:'read_menu' },
-      { id:'hs_stain',     x:'45%', y:'63%', w:'10%', h:'10%', label:'Examiner la tache', action:'stain_inspect' },
-      { id:'hs_table',     x:'72%', y:'55%', w:'14%', h:'12%', label:'Fouiller sous la table', action:'search_table' },
-      { id:'hs_kitchen_door', x:'5%', y:'35%', w:'10%', h:'30%', label:'Porte cuisine →', action:'go_kitchen', needsItem:'kitchen_key', locked:true },
-      { id:'hs_exit',      x:'85%', y:'40%', w:'10%', h:'25%', label:'← Sortir', action:'go_outside' },
-    ],
-    onEnter: function() {
-      if(!G.flags.dining_entered) {
-        G.flags.dining_entered = true;
-        scheduleDialog('act1_dining_enter', 600);
-      }
-      if(G.chapter === 2 && !G.flags.act2_tension_shown) {
-        G.flags.act2_tension_shown = true;
-        scheduleDialog('act2_tension_start', 1200);
-      }
-    }
-  },
-
-  fastfood_kitchen: {
-    name: 'Cuisine Industrielle',
-    ambient: 'tension',
-    creaks: 'low',
-    chapter: 1,
-    draw: drawScene_kitchen,
-    hotspots: [
-      { id:'hs_freezer',   x:'60%', y:'20%', w:'22%', h:'52%', label:'Ouvrir le congélateur', action:'open_freezer' },
-      { id:'hs_locker',    x:'78%', y:'22%', w:'14%', h:'40%', label:'Casiers employés', action:'search_locker' },
-      { id:'hs_storage_door', x:'1%', y:'32%', w:'9%', h:'32%', label:'→ Stockage', action:'go_storage' },
-      { id:'hs_back_dining', x:'88%', y:'35%', w:'10%', h:'28%', label:'← Salle', action:'go_dining' },
-      { id:'hs_crate',     x:'12%', y:'50%', w:'14%', h:'22%', label:'Fouiller les caisses', action:'search_crate' },
-    ],
-    onEnter: function() {
-      if(!G.flags.kitchen_entered) {
-        G.flags.kitchen_entered = true;
-        scheduleDialog('act1_kitchen_enter', 500);
-      }
-    }
-  },
-
-  fastfood_storage: {
-    name: 'Réserve — Zone Restreinte',
-    ambient: 'tension',
-    creaks: 'low',
-    chapter: 1,
-    draw: drawScene_storage,
-    hotspots: [
-      { id:'hs_boxes',     x:'10%', y:'20%', w:'70%', h:'50%', label:'Examiner les boîtes', action:'examine_boxes' },
-      { id:'hs_hidden_door', x:'75%', y:'28%', w:'15%', h:'45%', label:'???', action:'find_hidden', needsFlag:'shelf_moved' },
-      { id:'hs_shelf',     x:'75%', y:'28%', w:'15%', h:'45%', label:'Déplacer l\'étagère', action:'move_shelf', hideIfFlag:'shelf_moved' },
-      { id:'hs_back_kitchen', x:'1%', y:'35%', w:'8%', h:'30%', label:'← Cuisine', action:'go_kitchen' },
-    ],
-    onEnter: function() {}
-  },
-
-  office: {
-    name: 'Bureau du Directeur',
-    ambient: 'tension',
-    creaks: 'low',
-    chapter: 1,
-    draw: drawScene_office,
-    hotspots: [
-      { id:'hs_desk',      x:'30%', y:'30%', w:'28%', h:'38%', label:'Fouiller le bureau', action:'search_desk' },
-      { id:'hs_cabinet',   x:'70%', y:'18%', w:'15%', h:'52%', label:'Classeur', action:'search_cabinet' },
-      { id:'hs_wall_drawings', x:'0%', y:'5%', w:'25%', h:'50%', label:'Examiner les dessins', action:'view_wall' },
-      { id:'hs_back',      x:'82%', y:'60%', w:'14%', h:'20%', label:'← Sortir', action:'go_storage' },
-    ],
-    onEnter: function() {
-      if(G.chapter === 2 && !G.flags.act2_shadow) {
-        G.flags.act2_shadow = true;
-        scheduleDialog('act2_shadow_seen', 2000);
-      }
-    }
-  },
-
-  basement: {
-    name: 'Sous-Sol — Laboratoire',
-    ambient: 'horror',
-    creaks: 'high',
-    chapter: 2,
-    draw: drawScene_basement,
-    hotspots: [
-      { id:'hs_journal',   x:'55%', y:'45%', w:'12%', h:'18%', label:'Journal Grunholt', action:'read_journal' },
-      { id:'hs_jars',      x:'20%', y:'20%', w:'25%', h:'45%', label:'Bocaux de spécimens', action:'examine_jars' },
-      { id:'hs_lab_door',  x:'70%', y:'28%', w:'14%', h:'38%', label:'Porte du labo →', action:'open_lab_door', needsPuzzle:'code_puzzle', locked:true },
-      { id:'hs_back_storage', x:'1%', y:'35%', w:'8%', h:'30%', label:'← Remontée', action:'go_storage' },
-    ],
-    onEnter: function() {
-      if(!G.flags.basement_entered) {
-        G.flags.basement_entered = true;
-        if(G.chapter < 2) advanceChapter(2);
-        scheduleDialog('act3_alone_monologue', 1000);
-      }
-    }
-  },
-
-  lab_main: {
-    name: 'Laboratoire Principal — Zone X',
-    ambient: 'horror',
-    creaks: 'high',
-    chapter: 3,
-    draw: drawScene_lab,
-    hotspots: [
-      { id:'hs_whiteboard', x:'58%', y:'8%', w:'28%', h:'45%', label:'Tableau blanc', action:'read_whiteboard' },
-      { id:'hs_ritual_circle', x:'30%', y:'55%', w:'20%', h:'28%', label:'Cercle au sol', action:'examine_circle' },
-      { id:'hs_ritual_puzzle', x:'30%', y:'55%', w:'20%', h:'28%', label:'Placer les artefacts', action:'placement_puzzle', needsFlag:'found_flamby_note', needsItems:['fragment_cuve','formule_x77','sceau_tc'] },
-      { id:'hs_chamber_door', x:'1%', y:'25%', w:'10%', h:'50%', label:'→ Chambre Rituelle', action:'go_chamber', needsFlag:'ritual_complete' },
-      { id:'hs_back_basement', x:'85%', y:'38%', w:'12%', h:'28%', label:'← Sous-sol', action:'go_basement' },
-    ],
-    onEnter: function() {
-      if(G.chapter < 3) advanceChapter(3);
-    }
-  },
-
-  ritual_chamber: {
-    name: 'Chambre Rituelle — Niveau -3',
-    ambient: 'horror',
-    creaks: 'high',
-    chapter: 4,
-    draw: drawScene_chamber,
-    hotspots: [
-      { id:'hs_altar',     x:'35%', y:'28%', w:'30%', h:'40%', label:'Examiner l\'autel', action:'examine_altar' },
-      { id:'hs_summon',    x:'35%', y:'28%', w:'30%', h:'40%', label:'Invoquer le Sauveur', action:'summon_flamby', needsFlag:'ritual_complete' },
-      { id:'hs_back_lab',  x:'85%', y:'38%', w:'12%', h:'26%', label:'← Labo', action:'go_lab' },
-    ],
-    onEnter: function() {
-      if(G.chapter < 4) advanceChapter(4);
-      if(!G.flags.chamber_entered) {
-        G.flags.chamber_entered = true;
-      }
-    }
-  },
-};
-
-// ════════════════════════════════════════════════
-// 5. DESSIN DES SCÈNES (Canvas 2D)
-// ════════════════════════════════════════════════
-
-function drawPerspectiveRoom(ctx, w, h, opts={}) {
-  const { ceilColor='#080305', floorColor='#0a0405', wallColor='#0d0608', vanishX=0.5, floorDetail=true } = opts;
-  const cx = w*vanishX, cy = h*0.42;
-
-  // Ceiling
-  const cg = ctx.createLinearGradient(0,0,0,cy);
-  cg.addColorStop(0, ceilColor);
-  cg.addColorStop(1, wallColor);
-  ctx.fillStyle = cg;
-  ctx.fillRect(0,0,w,cy);
-
-  // Floor
-  const fg = ctx.createLinearGradient(0,cy,0,h);
-  fg.addColorStop(0, floorColor);
-  fg.addColorStop(1, '#050203');
-  ctx.fillStyle = fg;
-  ctx.fillRect(0,cy,w,h-cy);
-
-  // Perspective lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  ctx.lineWidth = 1;
-  for(let i=0;i<=10;i++) {
-    const fx = (i/10)*w;
-    ctx.beginPath();
-    ctx.moveTo(fx, h);
-    ctx.lineTo(cx, cy);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(fx, 0);
-    ctx.lineTo(cx, cy);
-    ctx.stroke();
-  }
-
-  // Floor tiles
-  if(floorDetail) {
-    ctx.strokeStyle = 'rgba(100,50,50,0.08)';
-    for(let row=1;row<8;row++){
-      const ty = cy + (h-cy)*row/8;
-      ctx.beginPath();
-      ctx.moveTo(0,ty);
-      ctx.lineTo(w,ty);
-      ctx.stroke();
-    }
-    for(let col=0;col<12;col++){
-      const tx = col/12*w;
-      ctx.beginPath();
-      ctx.moveTo(tx,h);
-      const vx = cx + (tx-cx)*(cy-h)/(h-cy)*-1;
-      ctx.lineTo(cx, cy);
-      ctx.stroke();
-    }
-  }
-}
-
-function drawVignette(ctx, w, h, intensity=0.7) {
-  const grd = ctx.createRadialGradient(w/2,h/2,h*0.1, w/2,h/2,h*0.8);
-  grd.addColorStop(0, 'rgba(0,0,0,0)');
-  grd.addColorStop(1, `rgba(0,0,0,${intensity})`);
-  ctx.fillStyle = grd;
-  ctx.fillRect(0,0,w,h);
-}
-
-function drawScene_outside(ctx, w, h) {
-  // Night sky
-  const sky = ctx.createLinearGradient(0,0,0,h*0.55);
-  sky.addColorStop(0,'#010006');
-  sky.addColorStop(1,'#0a0308');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0,0,w,h*0.55);
-
-  // Stars
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  const starSeed = [0.1,0.3,0.8,0.15,0.6,0.9,0.4,0.05,0.7,0.55,0.22,0.88,0.33,0.77,0.12,0.66,0.44,0.95];
-  starSeed.forEach((s,i)=>{
-    const sx = s*w, sy = ((i*0.137)%1)*h*0.4;
-    const sr = 0.5+Math.random()*1;
-    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2); ctx.fill();
-  });
-
-  // Ground
-  const grd = ctx.createLinearGradient(0,h*0.55,0,h);
-  grd.addColorStop(0,'#0a0507'); grd.addColorStop(1,'#050203');
-  ctx.fillStyle = grd;
-  ctx.fillRect(0,h*0.55,w,h*0.45);
-
-  // Building facade
-  ctx.fillStyle = '#0e0810';
-  ctx.fillRect(w*0.12, h*0.12, w*0.76, h*0.5);
-
-  // Windows (broken, dark)
-  [[0.18,0.17,0.1,0.12],[0.72,0.17,0.1,0.12],[0.18,0.35,0.1,0.1],[0.72,0.35,0.1,0.1]].forEach(([x,y,ww,hh])=>{
-    ctx.fillStyle = '#0a0208';
-    ctx.fillRect(w*x, h*y, w*ww, h*hh);
-    ctx.strokeStyle = 'rgba(80,20,30,0.4)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(w*x, h*y, w*ww, h*hh);
-    // crack
-    ctx.strokeStyle = 'rgba(60,0,10,0.6)'; ctx.lineWidth=1;
-    ctx.beginPath();
-    ctx.moveTo(w*(x+ww*0.4), h*y);
-    ctx.lineTo(w*(x+ww*0.6), h*(y+hh));
-    ctx.stroke();
-  });
-
-  // Door
-  ctx.fillStyle = '#080408';
-  ctx.fillRect(w*0.43, h*0.3, w*0.14, h*0.32);
-  ctx.strokeStyle = 'rgba(120,40,40,0.5)';
-  ctx.lineWidth=2;
-  ctx.strokeRect(w*0.43, h*0.3, w*0.14, h*0.32);
-  // Door handle
-  ctx.fillStyle = '#3a1a1a';
-  ctx.beginPath(); ctx.arc(w*0.455, h*0.465, 5, 0, Math.PI*2); ctx.fill();
-
-  // Sign
-  ctx.fillStyle = '#1a0a00';
-  ctx.fillRect(w*0.24, h*0.07, w*0.52, h*0.1);
-  // Sign glow
-  const sglow = ctx.createLinearGradient(w*0.24, 0, w*0.76, 0);
-  sglow.addColorStop(0,'rgba(180,80,0,0)');
-  sglow.addColorStop(0.3,'rgba(220,120,0,0.2)');
-  sglow.addColorStop(0.7,'rgba(220,120,0,0.2)');
-  sglow.addColorStop(1,'rgba(180,80,0,0)');
-  ctx.fillStyle = sglow;
-  ctx.fillRect(w*0.24, h*0.07, w*0.52, h*0.1);
-
-  ctx.fillStyle = '#cc6600';
-  ctx.font = `bold ${h*0.055}px 'Creepster', cursive`;
-  ctx.textAlign = 'center';
-  ctx.fillText('TASTY  CROUSTY', w*0.5, h*0.14);
-
-  // Dumpster
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(w*0.71, h*0.55, w*0.15, h*0.18);
-  ctx.fillStyle = '#252525';
-  ctx.fillRect(w*0.71, h*0.53, w*0.15, h*0.04);
-
-  // Pavement cracks
-  ctx.strokeStyle = 'rgba(255,200,150,0.05)';
-  ctx.lineWidth=1;
-  [[0.1,0.7,0.3,0.8],[0.5,0.9,0.7,0.75],[0.2,0.85,0.45,0.9]].forEach(([x1,y1,x2,y2])=>{
-    ctx.beginPath(); ctx.moveTo(w*x1,h*y1); ctx.lineTo(w*x2,h*y2); ctx.stroke();
-  });
-
-  drawVignette(ctx, w, h, 0.8);
-}
-
-function drawScene_dining(ctx, w, h) {
-  drawPerspectiveRoom(ctx, w, h, {ceilColor:'#070205', floorColor:'#0c0507', wallColor:'#0f0608'});
-
-  // Menu boards on back wall
-  ctx.fillStyle = '#1a0c0e';
-  ctx.fillRect(w*0.35, h*0.04, w*0.3, h*0.25);
-  ctx.strokeStyle = 'rgba(180,80,0,0.3)';
-  ctx.lineWidth=2; ctx.strokeRect(w*0.35, h*0.04, w*0.3, h*0.25);
-  ctx.fillStyle = 'rgba(100,50,10,0.4)';
-  ctx.font = `${h*0.024}px 'Creepster'`;
-  ctx.textAlign='center';
-  ctx.fillText('MENU', w*0.5, h*0.13);
-  ['TastyCrousty Original', 'TastyCrousty Noir', 'ÉDITION SPÉCIALE 666'].forEach((t,i)=>{
-    ctx.fillStyle = i===2 ? 'rgba(180,20,20,0.6)' : 'rgba(120,80,50,0.4)';
-    ctx.font = `${h*0.016}px 'Special Elite'`;
-    ctx.fillText(t, w*0.5, h*(0.16+i*0.04));
-  });
-
-  // Counter
-  ctx.fillStyle = '#160a0c';
-  ctx.fillRect(w*0.22, h*0.35, w*0.25, h*0.3);
-  ctx.fillStyle = '#1e0e10';
-  ctx.fillRect(w*0.22, h*0.33, w*0.25, h*0.04);
-
-  // Overturned tables
-  [[0.6,0.52,0.16,0.1], [0.68,0.68,0.18,0.08]].forEach(([x,y,ww,hh])=>{
-    ctx.save();
-    ctx.translate(w*(x+ww/2), h*(y+hh/2));
-    ctx.rotate(Math.random()*0.3-0.15);
-    ctx.fillStyle = '#1a0a0c';
-    ctx.fillRect(-w*ww/2, -h*hh/2, w*ww, h*hh);
-    ctx.restore();
-  });
-
-  // Stain on floor
-  const stain = ctx.createRadialGradient(w*0.5, h*0.68, 0, w*0.5, h*0.68, w*0.07);
-  stain.addColorStop(0,'rgba(80,5,5,0.6)');
-  stain.addColorStop(1,'rgba(40,0,0,0)');
-  ctx.fillStyle = stain;
-  ctx.beginPath(); ctx.ellipse(w*0.5, h*0.68, w*0.07, h*0.04, 0, 0, Math.PI*2); ctx.fill();
-
-  // Broken window — moonlight
-  ctx.fillStyle = 'rgba(15,15,40,0.3)';
-  ctx.fillRect(w*0.75, h*0.15, w*0.12, h*0.2);
-  const moonlight = ctx.createLinearGradient(w*0.75, h*0.15, w*0.75, h*0.6);
-  moonlight.addColorStop(0,'rgba(30,30,80,0.15)');
-  moonlight.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle = moonlight;
-  ctx.beginPath();
-  ctx.moveTo(w*0.75, h*0.15); ctx.lineTo(w*0.87, h*0.15);
-  ctx.lineTo(w*0.95, h); ctx.lineTo(w*0.6, h);
-  ctx.fill();
-
-  // Kitchen door (left)
-  ctx.fillStyle = G.inventory.includes('kitchen_key') ? '#1a1030' : '#100808';
-  ctx.fillRect(w*0.04, h*0.28, w*0.09, h*0.38);
-  ctx.strokeStyle = 'rgba(100,60,20,0.4)'; ctx.lineWidth=2;
-  ctx.strokeRect(w*0.04, h*0.28, w*0.09, h*0.38);
-  if(!G.flags.kitchen_unlocked) {
-    ctx.fillStyle = '#4a2010';
-    ctx.beginPath(); ctx.arc(w*0.12, h*0.47, 4, 0, Math.PI*2); ctx.fill();
-  }
-
-  drawVignette(ctx, w, h, 0.75);
-}
-
-function drawScene_kitchen(ctx, w, h) {
-  drawPerspectiveRoom(ctx, w, h, {ceilColor:'#060304', floorColor:'#0a0607', wallColor:'#0e0709'});
-
-  // Industrial ceiling ducts
-  ctx.fillStyle = '#1a1010';
-  [[0.1,0,0.15,0.08],[0.4,0,0.2,0.06],[0.7,0,0.15,0.07]].forEach(([x,y,ww,hh])=>{
-    ctx.fillRect(w*x, h*y, w*ww, h*hh);
-    ctx.strokeStyle='rgba(100,60,50,0.2)'; ctx.lineWidth=1;
-    ctx.strokeRect(w*x, h*y, w*ww, h*hh);
-  });
-
-  // Freezer (right side)
-  ctx.fillStyle = '#0d1a20';
-  ctx.fillRect(w*0.6, h*0.08, w*0.22, h*0.68);
-  ctx.strokeStyle = G.flags.freezer_opened ? 'rgba(0,100,150,0.4)' : 'rgba(60,100,120,0.3)';
-  ctx.lineWidth=3; ctx.strokeRect(w*0.6, h*0.08, w*0.22, h*0.68);
-  // Frost effect
-  ctx.fillStyle = 'rgba(150,220,255,0.04)';
-  ctx.fillRect(w*0.6, h*0.08, w*0.22, h*0.68);
-  // Red warning light on freezer
-  const flicker = Math.sin(Date.now()*0.005)>0.6;
-  ctx.fillStyle = flicker ? '#ff0000' : '#660000';
-  ctx.beginPath(); ctx.arc(w*0.7, h*0.12, 6, 0, Math.PI*2); ctx.fill();
-  if(flicker){
-    ctx.fillStyle='rgba(255,0,0,0.15)';
-    ctx.beginPath(); ctx.arc(w*0.7, h*0.12, 20, 0, Math.PI*2); ctx.fill();
-  }
-
-  // Lockers (right far)
-  ctx.fillStyle = '#111518';
-  ctx.fillRect(w*0.79, h*0.12, w*0.12, h*0.56);
-  ['#181c1f','#141820'].forEach((c,i)=>{
-    ctx.fillStyle=c;
-    ctx.fillRect(w*(0.795+i*0.055), h*0.14, w*0.048, h*0.5);
-  });
-
-  // Prep tables
-  ctx.fillStyle = '#1c1010';
-  ctx.fillRect(w*0.08, h*0.48, w*0.45, h*0.12);
-  ctx.fillStyle='#150e0e';
-  ctx.fillRect(w*0.08, h*0.45, w*0.45, h*0.04);
-
-  // Crates left
-  ctx.fillStyle = '#1a1008';
-  ctx.fillRect(w*0.08, h*0.55, w*0.16, h*0.2);
-  ctx.fillRect(w*0.1, h*0.48, w*0.12, h*0.08);
-
-  // Wall graffiti / writing
-  ctx.fillStyle = 'rgba(120,20,20,0.25)';
-  ctx.font = `${h*0.018}px 'Special Elite'`;
-  ctx.textAlign='left';
-  ctx.fillText('NE PAS OUVRIR', w*0.15, h*0.2);
-
-  // Storage door
-  ctx.fillStyle = '#100a08';
-  ctx.fillRect(w*0.0, h*0.28, w*0.08, h*0.38);
-  ctx.strokeStyle='rgba(80,40,20,0.4)'; ctx.lineWidth=2;
-  ctx.strokeRect(w*0.0, h*0.28, w*0.08, h*0.38);
-
-  drawVignette(ctx, w, h, 0.8);
-}
-
-function drawScene_storage(ctx, w, h) {
-  drawPerspectiveRoom(ctx, w, h, {ceilColor:'#050203', floorColor:'#080405', wallColor:'#0b0507'});
-
-  // Tall shelving units
-  const shelfColors = ['#120810','#0e070c','#100810'];
-  for(let col=0;col<3;col++){
-    const sx = w*(0.1+col*0.23);
-    ctx.fillStyle = shelfColors[col];
-    ctx.fillRect(sx, h*0.1, w*0.18, h*0.72);
-    // Shelves
-    for(let row=0;row<4;row++){
-      ctx.fillStyle='rgba(255,200,150,0.06)';
-      ctx.fillRect(sx, h*(0.1+row*0.18), w*0.18, h*0.02);
-      // Boxes on shelves
-      for(let box=0;box<3;box++){
-        ctx.fillStyle=`hsl(${25+Math.sin(col*row*box)*15},${30+col*5}%,${8+row*2}%)`;
-        ctx.fillRect(sx+w*(0.01+box*0.055), h*(0.13+row*0.18), w*0.05, h*0.1);
-        // TC logo on box
-        ctx.fillStyle='rgba(200,100,0,0.3)';
-        ctx.font=`${h*0.012}px 'Creepster'`;
-        ctx.textAlign='center';
-        ctx.fillText('TC', sx+w*(0.035+box*0.055), h*(0.18+row*0.18));
-      }
-    }
-  }
-
-  // Special boxes right side — lot 666
-  ctx.fillStyle = '#200810';
-  ctx.fillRect(w*0.76, h*0.25, w*0.14, h*0.5);
-  ctx.strokeStyle='rgba(200,20,20,0.4)'; ctx.lineWidth=2;
-  ctx.strokeRect(w*0.76, h*0.25, w*0.14, h*0.5);
-  ctx.fillStyle='rgba(180,0,0,0.5)';
-  ctx.font=`${h*0.016}px 'Creepster'`; ctx.textAlign='center';
-  ctx.fillText('LOT', w*0.83, h*0.42);
-  ctx.fillText('#666', w*0.83, h*0.5);
-  ctx.fillText('⚠ DANGER', w*0.83, h*0.58);
-
-  // Hidden passage glow (if shelf not moved)
-  if(!G.flags.shelf_moved) {
-    ctx.fillStyle='rgba(100,0,0,0.05)';
-    ctx.fillRect(w*0.76, h*0.25, w*0.14, h*0.5);
-  } else {
-    // Reveal dark opening
-    ctx.fillStyle='#000000';
-    ctx.fillRect(w*0.76, h*0.25, w*0.14, h*0.5);
-    ctx.fillStyle='rgba(100,0,30,0.2)';
-    ctx.beginPath();
-    ctx.ellipse(w*0.83, h*0.5, w*0.08, h*0.25, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle='rgba(80,0,20,0.3)';
-    ctx.font=`${h*0.02}px 'Creepster'`; ctx.textAlign='center';
-    ctx.fillText('↓ SOUS-SOL', w*0.83, h*0.5);
-  }
-
-  drawVignette(ctx, w, h, 0.85);
-}
-
-function drawScene_office(ctx, w, h) {
-  drawPerspectiveRoom(ctx, w, h, {ceilColor:'#060205', floorColor:'#080305', wallColor:'#0c0408'});
-
-  // Creepy wall drawings (left)
-  ctx.strokeStyle='rgba(100,10,10,0.4)'; ctx.lineWidth=1.5;
-  // Eyes drawn crazily
-  for(let i=0;i<8;i++){
-    const ex=w*(0.02+Math.sin(i*1.7)*0.1), ey=h*(0.1+i*0.08);
-    ctx.beginPath();
-    ctx.ellipse(ex+w*0.05, ey, w*0.04, h*0.025, 0, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.fillStyle='rgba(120,0,0,0.5)';
-    ctx.beginPath();
-    ctx.ellipse(ex+w*0.05, ey, w*0.015, h*0.012, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-  ctx.fillStyle='rgba(120,20,20,0.35)';
-  ctx.font=`${h*0.016}px 'Special Elite'`; ctx.textAlign='left';
-  ctx.fillText('IL REVIENT', w*0.01, h*0.78);
-  ctx.fillText('IL EST DANS', w*0.01, h*0.82);
-  ctx.fillText('LES MURS', w*0.02, h*0.86);
-
-  // Desk
-  ctx.fillStyle = '#1a0d10';
-  ctx.fillRect(w*0.28, h*0.35, w*0.32, h*0.28);
-  ctx.fillStyle='#1e1012';
-  ctx.fillRect(w*0.28, h*0.33, w*0.32, h*0.04);
-  // Papers on desk
-  [[0.3,0.37,0.08,0.1],[0.34,0.4,0.07,0.09],[0.4,0.36,0.1,0.08]].forEach(([x,y,ww,hh])=>{
-    ctx.fillStyle='#c8bc9a';
-    ctx.save(); ctx.translate(w*(x+ww/2),h*(y+hh/2));
-    ctx.rotate((Math.random()-.5)*.3); ctx.fillRect(-w*ww/2,-h*hh/2,w*ww,h*hh); ctx.restore();
-  });
-
-  // Computer (off, cracked screen)
-  ctx.fillStyle = '#111518';
-  ctx.fillRect(w*0.33, h*0.22, w*0.12, h*0.12);
-  ctx.fillStyle='#0a0d10'; ctx.fillRect(w*0.335, h*0.225, w*0.11, h*0.1);
-  // Crack on screen
-  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(w*0.36,h*0.225); ctx.lineTo(w*0.38,h*0.32); ctx.stroke();
-
-  // Filing cabinet
-  ctx.fillStyle='#131215';
-  ctx.fillRect(w*0.68, h*0.12, w*0.14, h*0.58);
-  for(let d=0;d<3;d++){
-    ctx.fillStyle='rgba(60,30,40,0.4)';
-    ctx.fillRect(w*0.69, h*(0.14+d*0.17), w*0.12, h*0.14);
-    ctx.fillStyle='#2a1820';
-    ctx.beginPath(); ctx.arc(w*0.75, h*(0.21+d*0.17), 4, 0, Math.PI*2); ctx.fill();
-  }
-
-  drawVignette(ctx, w, h, 0.8);
-}
-
-function drawScene_basement(ctx, w, h) {
-  drawPerspectiveRoom(ctx, w, h, {ceilColor:'#040102', floorColor:'#060204', wallColor:'#090306', floorDetail:false});
-
-  // Red emergency lighting strips
-  const redBeat = 0.3+Math.sin(Date.now()*.002)*.1;
-  ctx.fillStyle=`rgba(180,0,0,${redBeat})`;
-  ctx.fillRect(0,0,w,h*0.04);
-  ctx.fillRect(0,h*0.96,w,h*0.04);
-
-  // Specimen jars
-  const jarPositions = [[0.08,0.2],[0.15,0.18],[0.22,0.22],[0.08,0.44],[0.17,0.4]];
-  jarPositions.forEach(([x,y])=>{
-    // Jar
-    ctx.fillStyle='rgba(0,30,40,0.6)';
-    ctx.strokeStyle='rgba(0,80,100,0.4)'; ctx.lineWidth=1.5;
-    ctx.beginPath();
-    ctx.ellipse(w*x, h*(y+0.1), w*0.04, h*0.12, 0, 0, Math.PI*2);
-    ctx.fill(); ctx.stroke();
-    // Liquid
-    const jg = ctx.createRadialGradient(w*x,h*(y+0.1),0,w*x,h*(y+0.1),w*0.035);
-    jg.addColorStop(0,'rgba(0,120,80,0.3)');
-    jg.addColorStop(1,'rgba(0,60,40,0.1)');
-    ctx.fillStyle=jg;
-    ctx.beginPath();
-    ctx.ellipse(w*x, h*(y+0.1), w*0.035, h*0.1, 0, 0, Math.PI*2);
-    ctx.fill();
-    // Mini TC inside
-    ctx.fillStyle='rgba(180,80,0,0.4)';
-    ctx.beginPath(); ctx.arc(w*x, h*(y+0.1), 6, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(255,0,0,0.6)';
-    ctx.beginPath(); ctx.arc(w*(x-0.005), h*(y+0.08), 2, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(w*(x+0.005), h*(y+0.08), 2, 0, Math.PI*2); ctx.fill();
-  });
-
-  // Lab bench
-  ctx.fillStyle='#0e0810';
-  ctx.fillRect(w*0.05, h*0.55, w*0.45, h*0.15);
-  // Journal on bench
-  ctx.fillStyle='#8a7a60'; ctx.save();
-  ctx.translate(w*0.58, h*0.52); ctx.rotate(-.05);
-  ctx.fillRect(-w*0.05, -h*0.07, w*0.1, h*0.14); ctx.restore();
-  ctx.fillStyle='rgba(50,30,10,0.5)';
-  ctx.font=`${h*0.015}px 'IM Fell English'`; ctx.textAlign='center';
-  ctx.fillText('JOURNAL', w*0.58, h*0.52);
-
-  // Lab door (right)
-  ctx.fillStyle = G.flags.lab_unlocked ? '#0a0f18' : '#100808';
-  ctx.fillRect(w*0.72, h*0.22, w*0.14, h*0.45);
-  ctx.strokeStyle = G.flags.lab_unlocked ? 'rgba(40,80,120,0.5)' : 'rgba(100,40,40,0.4)';
-  ctx.lineWidth=3; ctx.strokeRect(w*0.72, h*0.22, w*0.14, h*0.45);
-  if(!G.flags.lab_unlocked) {
-    ctx.fillStyle='#cc3300';
-    ctx.font=`${h*0.018}px 'Oswald'`; ctx.textAlign='center';
-    ctx.fillText('🔒 CODE REQUIS', w*0.79, h*0.48);
-  } else {
-    ctx.fillStyle='rgba(0,100,200,0.3)';
-    ctx.font=`${h*0.018}px 'Oswald'`; ctx.textAlign='center';
-    ctx.fillText('→ LABO', w*0.79, h*0.48);
-  }
-
-  // Ceiling pipes
-  ctx.strokeStyle='rgba(40,30,30,0.6)'; ctx.lineWidth=8;
-  for(let p=0;p<5;p++){
-    ctx.beginPath(); ctx.moveTo(w*(0.1+p*0.2),0); ctx.lineTo(w*(0.1+p*0.2),h*0.08); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,h*0.08); ctx.lineTo(w,h*0.08); ctx.stroke();
-  }
-
-  // Creepy writing on floor
-  ctx.fillStyle='rgba(120,0,0,0.2)';
-  ctx.font=`${h*0.018}px 'Special Elite'`; ctx.textAlign='center';
-  ctx.fillText('TROUVEZ FLAMBY', w*0.5, h*0.88);
-
-  drawVignette(ctx, w, h, 0.9);
-}
-
-function drawScene_lab(ctx, w, h) {
-  drawPerspectiveRoom(ctx, w, h, {ceilColor:'#020105', floorColor:'#040208', wallColor:'#060310', floorDetail:false});
-
-  // Blue-purple ambient
-  const blueGlow = ctx.createRadialGradient(w*0.5,h*0.3,0,w*0.5,h*0.3,w*0.5);
-  blueGlow.addColorStop(0,'rgba(20,10,60,0.3)');
-  blueGlow.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=blueGlow; ctx.fillRect(0,0,w,h);
-
-  // Whiteboard
-  ctx.fillStyle='#c0ccc8';
-  ctx.fillRect(w*0.58, h*0.06, w*0.28, h*0.38);
-  ctx.strokeStyle='rgba(150,180,200,0.4)'; ctx.lineWidth=3;
-  ctx.strokeRect(w*0.58, h*0.06, w*0.28, h*0.38);
-  // Writing on whiteboard
-  ctx.fillStyle='rgba(30,10,60,0.6)';
-  ctx.font=`${h*0.018}px 'Special Elite'`;
-  ctx.textAlign='left';
-  ['Sujet F (FLAMBY) :', '> Ventre de Fer confirmé', '> Immunité X-77 : 100%', '> Solution finale : MANGER', 'Protocole Sauveur ACTIF'].forEach((t,i)=>{
-    ctx.fillText(t, w*0.6, h*(0.12+i*0.055));
-  });
-
-  // Ritual circle on floor
-  const ritualAlpha = G.flags.ritual_complete ? 0.6 : 0.25;
-  ctx.strokeStyle=`rgba(220,80,0,${ritualAlpha})`; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(w*0.38, h*0.72, h*0.12, 0, Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(w*0.38, h*0.72, h*0.07, 0, Math.PI*2); ctx.stroke();
-  // Pentagon inside circle
-  for(let i=0;i<5;i++){
-    const a1=(i/5)*Math.PI*2-Math.PI/2, a2=((i+1)/5)*Math.PI*2-Math.PI/2;
-    ctx.beginPath();
-    ctx.moveTo(w*0.38+Math.cos(a1)*h*0.1, h*0.72+Math.sin(a1)*h*0.1);
-    ctx.lineTo(w*0.38+Math.cos(a2)*h*0.1, h*0.72+Math.sin(a2)*h*0.1);
-    ctx.stroke();
-  }
-  if(G.flags.ritual_complete) {
-    const rGlow = ctx.createRadialGradient(w*0.38,h*0.72,0,w*0.38,h*0.72,h*0.12);
-    rGlow.addColorStop(0,'rgba(220,100,0,0.3)'); rGlow.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=rGlow; ctx.fillRect(0,0,w,h);
-  }
-
-  // Research equipment
-  ctx.fillStyle='#0a0810';
-  ctx.fillRect(w*0.05, h*0.4, w*0.3, h*0.2);
-  // Tubes and beakers
-  for(let t=0;t<5;t++){
-    ctx.fillStyle=`rgba(${20+t*10},0,${80-t*10},0.5)`;
-    ctx.fillRect(w*(0.07+t*0.05), h*0.3, w*0.015, h*0.12);
-  }
-
-  // Chamber door
-  const chamberOpen = G.flags.ritual_complete;
-  ctx.fillStyle = chamberOpen ? '#05020a' : '#080508';
-  ctx.fillRect(w*0.0, h*0.2, w*0.09, h*0.55);
-  ctx.strokeStyle = chamberOpen ? 'rgba(150,80,200,0.5)' : 'rgba(60,30,80,0.3)';
-  ctx.lineWidth=3; ctx.strokeRect(w*0.0, h*0.2, w*0.09, h*0.55);
-
-  drawVignette(ctx, w, h, 0.88);
-}
-
-function drawScene_chamber(ctx, w, h) {
-  // Ancient stone look
-  const bg = ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,h*0.8);
-  bg.addColorStop(0,'#0a0515'); bg.addColorStop(1,'#000000');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,w,h);
-
-  // Stone texture approximation
-  ctx.strokeStyle='rgba(40,20,40,0.2)'; ctx.lineWidth=1;
-  for(let y=0;y<h;y+=h*0.06) for(let x=0;x<w;x+=w*0.1){
-    ctx.strokeRect(x+(y%2>0?w*0.05:0), y, w*0.1, h*0.06);
-  }
-
-  // Altar/pedestal
-  ctx.fillStyle='#1a0d20';
-  ctx.fillRect(w*0.35, h*0.28, w*0.3, h*0.42);
-  ctx.fillStyle='#230f2a';
-  ctx.fillRect(w*0.32, h*0.26, w*0.36, h*0.06);
-  // Glowing runes on altar
-  const runeAlpha = 0.3 + Math.sin(Date.now()*.002)*.15;
-  ctx.fillStyle=`rgba(180,60,200,${runeAlpha})`;
-  ctx.font=`${h*0.04}px 'Creepster'`; ctx.textAlign='center';
-  ctx.fillText('⚡ ☠ ⚡', w*0.5, h*0.48);
-  ctx.font=`${h*0.022}px 'Special Elite'`;
-  ctx.fillStyle=`rgba(150,50,180,${runeAlpha})`;
-  ctx.fillText('INVOQUER LE SAUVEUR', w*0.5, h*0.56);
-
-  // Candles
-  const candlePositions = [[0.2,0.6],[0.8,0.6],[0.12,0.4],[0.88,0.4],[0.5,0.82]];
-  candlePositions.forEach(([x,y])=>{
-    // Candle body
-    ctx.fillStyle='#c8b87a';
-    ctx.fillRect(w*x-4, h*y, 8, h*0.08);
-    // Flame
-    const fa = Math.sin(Date.now()*.01+x*10)*.3;
-    ctx.fillStyle=`rgba(255,180,0,${0.8+fa*0.2})`;
-    ctx.beginPath();
-    ctx.ellipse(w*x, h*y, 5, 10, fa, 0, Math.PI*2);
-    ctx.fill();
-    // Glow
-    const cg = ctx.createRadialGradient(w*x,h*y,0,w*x,h*y,w*0.06);
-    cg.addColorStop(0,`rgba(255,150,0,${0.12+fa*0.05})`);
-    cg.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=cg; ctx.fillRect(0,0,w,h);
-  });
-
-  // Artefacts placed in ritual
-  if(G.flags.ritual_complete) {
-    ['🪨','📜','🔖'].forEach((emoji,i)=>{
-      ctx.font=`${h*0.035}px serif`; ctx.textAlign='center';
-      ctx.fillText(emoji, w*(0.4+i*0.1), h*0.38);
+// ── ÉTAT ─────────────────────────────────────────────────────
+const G={chapter:0,scene:'',inventory:[],notes:[],flags:{},selectedItem:null,paused:false,dialogActive:false,puzzleActive:false,options:{volume:0.7,brightness:0.8,flashOn:true},_typeTimer:null};
+
+// ── THREE.JS ──────────────────────────────────────────────────
+let renderer,scene,camera,flashlight,flashTarget;
+let roomGroup=null,interactables=[],roomColliders=[],doorTriggers=[],animLights=[];
+let gameRunning=false,loopId=null;
+const clock=new THREE.Clock();
+
+// ── CONSTANTES ────────────────────────────────────────────────
+const PH=1.72,PR=0.38,SPD=4.5;
+const C={DW:0x0c0608,DARK:0x080405,FL:0x0a0507,CL:0x060304,MT:0x151418,MTD:0x0e0c10,ST:0x181015,STD:0x100d12,BL:0x3a0505,CN:0x141214,WD:0x1a0e08,TC:0x2a1500};
+
+// ── FPS CONTROLS ──────────────────────────────────────────────
+const Ctrl={locked:false,yaw:0,pitch:0,keys:{},bobT:0,stepT:0,
+  init(){
+    const cv=renderer.domElement;
+    cv.addEventListener('click',()=>{if(gameRunning&&!G.dialogActive&&!G.puzzleActive&&!G.paused)cv.requestPointerLock();});
+    document.addEventListener('pointerlockchange',()=>{
+      Ctrl.locked=document.pointerLockElement===cv;
+      const h=document.getElementById('ptr-hint');
+      if(h)h.style.display=Ctrl.locked?'none':'flex';
     });
-    const aura = ctx.createRadialGradient(w*0.5,h*0.68,0,w*0.5,h*0.68,w*0.35);
-    aura.addColorStop(0,`rgba(100,0,180,0.2)`);
-    aura.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=aura; ctx.fillRect(0,0,w,h);
-  }
-
-  // Back to lab door
-  ctx.fillStyle='#080508';
-  ctx.fillRect(w*0.85, h*0.3, w*0.12, h*0.4);
-  ctx.strokeStyle='rgba(80,40,100,0.3)'; ctx.lineWidth=2;
-  ctx.strokeRect(w*0.85, h*0.3, w*0.12, h*0.4);
-
-  drawVignette(ctx, w, h, 0.92);
-}
-
-// ════════════════════════════════════════════════
-// 6. MOTEUR DU JEU
-// ════════════════════════════════════════════════
-
-function init() {
-  G.sceneCanvas  = document.getElementById('scene-canvas');
-  G.sceneCtx     = G.sceneCanvas.getContext('2d');
-  G.menuCanvas   = document.getElementById('menu-bg-canvas');
-  G.menuCtx      = G.menuCanvas.getContext('2d');
-  G.screamerCanvas = document.getElementById('screamer-canvas');
-  G.screamerCtx  = G.screamerCanvas.getContext('2d');
-
-  resizeAll();
-  window.addEventListener('resize', resizeAll);
-
-  // Menu button wiring
-  document.getElementById('btn-new-game').addEventListener('click', startNewGame);
-  document.getElementById('btn-continue').addEventListener('click', loadGame);
-  document.getElementById('btn-options').addEventListener('click', showOptions);
-  document.getElementById('btn-quit').addEventListener('click', ()=>window.location.reload());
-  document.getElementById('btn-back-options').addEventListener('click', showMenu);
-
-  // Options
-  const volSlider = document.getElementById('volume-slider');
-  const briSlider = document.getElementById('bright-slider');
-  volSlider.addEventListener('input', ()=>{ G.options.volume=volSlider.value/100; Audio.setVolume(G.options.volume); document.getElementById('volume-val').textContent=volSlider.value+'%'; });
-  briSlider.addEventListener('input', ()=>{ G.options.brightness=briSlider.value/100; document.getElementById('bright-val').textContent=briSlider.value+'%'; document.getElementById('vignette-overlay').style.opacity=1.2-G.options.brightness; });
-
-  // Dialog advance
-  document.getElementById('dialog-advance').addEventListener('click', advanceDialog);
-
-  // Note close
-  document.getElementById('note-close-btn').addEventListener('click', closeNote);
-
-  // Puzzle cancel
-  document.getElementById('puzzle-cancel').addEventListener('click', closePuzzle);
-
-  // Pause
-  document.getElementById('pause-btn').addEventListener('click', togglePause);
-  document.getElementById('pause-resume').addEventListener('click', togglePause);
-  document.getElementById('pause-save').addEventListener('click', ()=>{ saveGame(); showFeedback('Partie sauvegardée !'); });
-  document.getElementById('pause-main-menu').addEventListener('click', ()=>{ hidePause(); showMenu(); });
-
-  // Cinematic skip
-  document.getElementById('cinematic-skip-btn').addEventListener('click', ()=>{
-    Cinematic.play('__skip__', ()=>{});
-  });
-
-  // Epilogue
-  document.getElementById('epilogue-advance').addEventListener('click', startCredits);
-
-  // Credits back
-  document.getElementById('credits-back').addEventListener('click', ()=>{ showScreen('main-menu'); showMenu(); });
-
-  // Keyboard
-  document.addEventListener('keydown', onKeyDown);
-
-  // Check save
-  if(localStorage.getItem('tc_save')) {
-    document.getElementById('btn-continue').disabled = false;
-  }
-
-  // Init audio silently
-  Audio.init();
-
-  // Start loading sequence
-  simulateLoading(()=>{
-    hideScreen('loading-screen');
-    showMenu();
-  });
-}
-
-function resizeAll() {
-  [G.sceneCanvas, G.menuCanvas, G.screamerCanvas].forEach(c=>{
-    if(c){ c.width=window.innerWidth; c.height=window.innerHeight; }
-  });
-}
-
-// ── LOADING ─────────────────────────────────
-function simulateLoading(done) {
-  const bar = document.getElementById('loading-bar');
-  const txt = document.getElementById('loading-text');
-  const steps = [
-    [15,  'Chargement des textures...'],
-    [30,  'Initialisation du moteur...'],
-    [48,  'Chargement des scènes...'],
-    [65,  'Préparation des dialogues...'],
-    [80,  'Calibrage des détecteurs de snack...'],
-    [92,  'Invocation des entités...'],
-    [100, 'Prêt.'],
-  ];
-  let idx=0;
-  function step(){
-    if(idx>=steps.length){ setTimeout(done, 500); return; }
-    const [pct,msg] = steps[idx++];
-    bar.style.width=pct+'%';
-    txt.textContent=msg;
-    setTimeout(step, 300+Math.random()*400);
-  }
-  step();
-}
-
-// ── MENU ────────────────────────────────────
-function showMenu() {
-  showScreen('main-menu');
-  Audio.init();
-  Audio.playAmbient('factory');
-  Audio.startRandomCreaks('low');
-  animateMenuBg();
-}
-
-let menuAnimId=null;
-function animateMenuBg(){
-  if(menuAnimId) cancelAnimationFrame(menuAnimId);
-  const ctx = G.menuCtx;
-  const w = G.menuCanvas.width, h = G.menuCanvas.height;
-  let t=0;
-  function frame(){
-    menuAnimId=requestAnimationFrame(frame);
-    t+=0.005;
-    ctx.fillStyle='rgba(0,0,0,0.04)';
-    ctx.fillRect(0,0,w,h);
-    // Drifting particles
-    for(let i=0;i<3;i++){
-      const x=((Math.sin(t*0.3+i*2.1)*0.5+0.5)+t*0.05)%1 * w;
-      const y=((Math.cos(t*0.2+i*1.7)*0.5+0.5)) * h;
-      ctx.fillStyle=`rgba(${120+Math.sin(t+i)*40},0,0,0.06)`;
-      ctx.beginPath(); ctx.arc(x,y,80+Math.sin(t*2+i)*30,0,Math.PI*2); ctx.fill();
+    document.addEventListener('mousemove',e=>{
+      if(!Ctrl.locked||G.paused||G.dialogActive||G.puzzleActive)return;
+      Ctrl.yaw-=e.movementX*0.0018;Ctrl.pitch-=e.movementY*0.0018;
+      Ctrl.pitch=Math.max(-1.2,Math.min(1.2,Ctrl.pitch));
+      camera.rotation.order='YXZ';camera.rotation.y=Ctrl.yaw;camera.rotation.x=Ctrl.pitch;
+    });
+    document.addEventListener('keydown',e=>{
+      Ctrl.keys[e.code]=true;
+      if(e.code==='KeyE'&&currentTarget){e.preventDefault();handleAction(currentTarget.userData);}
+      if(e.code==='KeyF'){G.options.flashOn=!G.options.flashOn;flashlight.visible=G.options.flashOn;Audio.play('click');}
+      if((e.code==='Space'||e.code==='Enter')){e.preventDefault();if(G.dialogActive)advanceDialog();}
+      if(e.code==='Escape'){
+        if(document.pointerLockElement)document.exitPointerLock();
+        if(G.puzzleActive)closePuzzle();
+        else if(!document.getElementById('note-reader').classList.contains('hidden'))closeNote();
+        else togglePause();
+      }
+    });
+    document.addEventListener('keyup',e=>{delete Ctrl.keys[e.code];});
+    document.addEventListener('mousedown',e=>{if(e.button===0&&Ctrl.locked&&currentTarget&&!G.dialogActive&&!G.puzzleActive)handleAction(currentTarget.userData);});
+  },
+  update(dt){
+    if(!Ctrl.locked||G.paused||G.puzzleActive)return;
+    const fwd=Ctrl.keys['KeyZ']||Ctrl.keys['KeyW'],bk=Ctrl.keys['KeyS'],lt=Ctrl.keys['KeyQ']||Ctrl.keys['KeyA'],rt=Ctrl.keys['KeyD'];
+    if(!fwd&&!bk&&!lt&&!rt){camera.position.y+=(PH-camera.position.y)*Math.min(1,dt*8);return;}
+    const d=new THREE.Vector3();
+    if(fwd)d.z-=1;if(bk)d.z+=1;if(lt)d.x-=1;if(rt)d.x+=1;
+    d.normalize().multiplyScalar(SPD*dt);
+    d.applyAxisAngle(new THREE.Vector3(0,1,0),Ctrl.yaw);
+    const np=camera.position.clone();np.x+=d.x;np.z+=d.z;
+    if(!collide(np)){camera.position.x=np.x;camera.position.z=np.z;}
+    else{
+      const nx=new THREE.Vector3(camera.position.x+d.x,camera.position.y,camera.position.z);
+      const nz=new THREE.Vector3(camera.position.x,camera.position.y,camera.position.z+d.z);
+      if(!collide(nx))camera.position.x=nx.x;
+      if(!collide(nz))camera.position.z=nz.z;
     }
-    // Floating crouton symbols
-    if(Math.random()<0.002) {
-      ctx.fillStyle='rgba(180,80,0,0.04)';
-      ctx.font=`${20+Math.random()*30}px Creepster`;
-      ctx.textAlign='center';
-      ctx.fillText('🍞', Math.random()*w, Math.random()*h);
-    }
+    Ctrl.bobT+=dt*11;camera.position.y=PH+Math.sin(Ctrl.bobT)*0.036;
+    Ctrl.stepT-=dt;
+    if(Ctrl.stepT<=0){Audio.play(['basement','lab_main','ritual_chamber'].includes(G.scene)?'footstep_concrete':'footstep');Ctrl.stepT=0.42;}
+    checkDoors();
   }
-  frame();
+};
+
+// ── COLLISION ─────────────────────────────────────────────────
+function collide(p){for(const b of roomColliders)if(p.x>b.x0-PR&&p.x<b.x1+PR&&p.z>b.z0-PR&&p.z<b.z1+PR)return true;return false;}
+function coll(x0,z0,x1,z1){roomColliders.push({x0,z0,x1,z1});}
+
+// ── DOORS ─────────────────────────────────────────────────────
+function checkDoors(){
+  const p=camera.position;
+  for(const d of doorTriggers)if(p.x>d.x0&&p.x<d.x1&&p.z>d.z0&&p.z<d.z1){gotoRoom(d.room,d.sx,d.sz,d.yaw??0);break;}
+}
+function doorTrig(x0,z0,x1,z1,room,sx,sz,yaw=0){doorTriggers.push({x0,z0,x1,z1,room,sx,sz,yaw});}
+
+// ── FADE ──────────────────────────────────────────────────────
+let fadeEl=null;
+function fade(ms,cb){fadeEl.style.transition=`opacity ${ms/1000}s ease`;fadeEl.style.opacity='1';fadeEl.style.pointerEvents='all';setTimeout(()=>{cb();setTimeout(()=>{fadeEl.style.opacity='0';fadeEl.style.pointerEvents='none';},80);},ms);}
+
+// ── RAYCASTER ─────────────────────────────────────────────────
+const RAY=new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(),0,3.5);
+const SCV=new THREE.Vector2(0,0);
+let currentTarget=null;
+function updateRay(){
+  if(!gameRunning||G.paused||G.dialogActive||G.puzzleActive)return;
+  RAY.setFromCamera(SCV,camera);
+  const hits=RAY.intersectObjects(interactables,false);
+  const el=document.getElementById('i-hint');
+  if(hits.length>0&&hits[0].object.userData.interactive){
+    currentTarget=hits[0].object;
+    if(el){el.style.display='block';el.textContent='[ E ]  '+currentTarget.userData.label;}
+  }else{currentTarget=null;if(el)el.style.display='none';}
 }
 
-// ── SCREENS ─────────────────────────────────
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
-}
-function hideScreen(id) { document.getElementById(id).classList.add('hidden'); }
-
-function showOptions() {
-  showScreen('options-screen');
-}
-
-// ── GAME START ───────────────────────────────
-function startNewGame() {
-  Audio.resume();
-  G.chapter = 0;
-  G.scene = '';
-  G.inventory = [];
-  G.notes = [];
-  G.flags = {};
-  G.selectedItem = null;
-
-  cancelAnimationFrame(menuAnimId);
-  Audio.stopRandomCreaks();
-
-  // Play intro cinematic
-  showScreen('cinematic-screen');
-  Cinematic.play('intro', ()=>{
-    startChapter(1);
+// ── THREE.JS INIT ─────────────────────────────────────────────
+function initThree(){
+  const cv=document.getElementById('scene-canvas');
+  cv.width=window.innerWidth;cv.height=window.innerHeight;
+  renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x000000);renderer.toneMapping=THREE.ReinhardToneMapping;renderer.toneMappingExposure=0.78;
+  scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x000000,0.07);
+  camera=new THREE.PerspectiveCamera(78,window.innerWidth/window.innerHeight,0.05,55);
+  camera.position.set(0,PH,0);camera.rotation.order='YXZ';scene.add(camera);
+  // Flashlight on camera
+  flashlight=new THREE.SpotLight(0xffe8b0,4.5,22,Math.PI/8.5,0.35,1.8);
+  flashlight.castShadow=true;flashlight.shadow.mapSize.set(512,512);
+  flashlight.shadow.camera.near=0.1;flashlight.shadow.camera.far=22;
+  flashlight.position.set(0.18,-0.12,0);
+  flashTarget=new THREE.Object3D();flashTarget.position.set(0,-0.08,-1);
+  camera.add(flashlight);camera.add(flashTarget);flashlight.target=flashTarget;
+  scene.add(new THREE.AmbientLight(0x060307,2.5));
+  window.addEventListener('resize',()=>{
+    renderer.setSize(window.innerWidth,window.innerHeight);
+    camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();
+    cv.width=window.innerWidth;cv.height=window.innerHeight;
   });
 }
 
-function loadGame() {
-  Audio.resume();
-  const save = localStorage.getItem('tc_save');
-  if(!save) return;
-  try {
-    const d = JSON.parse(save);
-    G.chapter   = d.chapter;
-    G.scene     = d.scene;
-    G.inventory = d.inventory;
-    G.notes     = d.notes;
-    G.flags     = d.flags;
-    G.selectedItem = null;
-    cancelAnimationFrame(menuAnimId);
-    showScreen('game-screen');
-    gotoScene(G.scene || 'fastfood_outside');
-  } catch(e) { alert('Sauvegarde corrompue.'); }
+// ── MESH HELPERS ─────────────────────────────────────────────
+function mat(col,rough=0.92,metal=0.05,em=0x000000,ei=0){return new THREE.MeshStandardMaterial({color:col,roughness:rough,metalness:metal,emissive:em,emissiveIntensity:ei});}
+function bmat(col,op=1){return new THREE.MeshBasicMaterial({color:col,transparent:op<1,opacity:op});}
+function bx(w,h,d,m,x=0,y=0,z=0,ry=0){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);mesh.position.set(x,y,z);mesh.rotation.y=ry;mesh.castShadow=true;mesh.receiveShadow=true;return mesh;}
+function plight(g,col,i,dist,x,y,z){const l=new THREE.PointLight(col,i,dist);l.position.set(x,y,z);g.add(l);return l;}
+function animL(l,base,freq,amp){animLights.push({l,base,freq,amp});}
+function inter(mesh,label,action,g){mesh.userData={interactive:true,label,action};interactables.push(mesh);if(g)g.add(mesh);}
+
+// Build a closed room: floor, ceiling, 4 walls with optional door gaps on N/S
+function buildRoom(g,W,H,D,col,dN=false,dS=false){
+  const DW=2.3,DH=2.5;
+  g.add(bx(W,0.12,D,mat(C.FL,0.97),0,-0.06,0)); // floor
+  g.add(bx(W,0.12,D,mat(C.CL,0.98),0,H+0.06,0)); // ceil
+  // West & East walls (full)
+  g.add(bx(0.28,H,D,mat(col,0.98),-W/2,H/2,0));coll(-W/2-0.3,- D/2,- W/2+0.3,D/2);
+  g.add(bx(0.28,H,D,mat(col,0.98), W/2,H/2,0));coll( W/2-0.3,-D/2,  W/2+0.3,D/2);
+  // South wall
+  if(dS){g.add(bx(W/2-DW/2,H,0.28,mat(col,0.98),-W/4,H/2,D/2));g.add(bx(W/2-DW/2,H,0.28,mat(col,0.98),W/4,H/2,D/2));g.add(bx(DW,H-DH,0.28,mat(col,0.98),0,H-(H-DH)/2,D/2));}
+  else{g.add(bx(W,H,0.28,mat(col,0.98),0,H/2,D/2));coll(-W/2,D/2-0.3,W/2,D/2+0.3);}
+  // North wall
+  if(dN){g.add(bx(W/2-DW/2,H,0.28,mat(col,0.98),-W/4,H/2,-D/2));g.add(bx(W/2-DW/2,H,0.28,mat(col,0.98),W/4,H/2,-D/2));g.add(bx(DW,H-DH,0.28,mat(col,0.98),0,H-(H-DH)/2,-D/2));}
+  else{g.add(bx(W,H,0.28,mat(col,0.98),0,H/2,-D/2));coll(-W/2,-D/2-0.3,W/2,-D/2+0.3);}
 }
 
-function saveGame() {
-  localStorage.setItem('tc_save', JSON.stringify({
-    chapter: G.chapter, scene: G.scene,
-    inventory: G.inventory, notes: G.notes, flags: G.flags
-  }));
-  document.getElementById('btn-continue').disabled = false;
+function shelf(g,x,z){
+  g.add(bx(2,2.2,0.06,mat(C.MTD,0.9),x,1.1,z));
+  for(let s=0;s<3;s++){g.add(bx(2,0.04,0.38,mat(C.MTD,0.8),x,0.38+s*0.85,z-0.17));for(let b=0;b<4;b++)g.add(bx(0.3,0.26,0.28,mat(C.TC,0.95),x-0.7+b*0.46,0.51+s*0.85,z-0.17));}
+  coll(x-1.05,z-0.22,x+1.05,z+0.1);
 }
+function bench(g,x,z,w=2){g.add(bx(w,0.07,0.75,mat(C.MT,0.4,0.5),x,0.92,z));g.add(bx(w,0.88,0.75,mat(C.MTD),x,0.44,z));coll(x-w/2-0.1,z-0.42,x+w/2+0.1,z+0.42);}
+function candle(g,x,z){g.add(bx(0.07,0.22,0.07,mat(0xd4b060,0.8),x,0.11,z));g.add(bx(0.05,0.07,0.05,bmat(0xff9900),x,0.29,z));const l=plight(g,0xff7700,0.5,2.5,x,0.5,z);animL(l,0.45,3+Math.random()*2,0.15);}
+function jar(g,x,z){const m=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.085,0.3,8),new THREE.MeshStandardMaterial({color:0x001a18,transparent:true,opacity:0.65,roughness:0.1,metalness:0.15}));m.position.set(x,0.82,z);g.add(m);plight(g,0x004422,0.12,0.7,x,0.9,z);g.add(bx(0.06,0.06,0.06,mat(0x3a1800,0.8,0,0xff2200,0.5),x,0.82,z));return m;}
 
-// ── CHAPTERS ─────────────────────────────────
-function startChapter(n) {
-  G.chapter = n;
-  showScreen('game-screen');
+// ════════════════════════════════════════════════════════════
+// ROOMS
+// ════════════════════════════════════════════════════════════
+const ROOMS={};
 
-  const chapterTitles = {
-    1: { num:'ACTE I',    name:'Exploration' },
-    2: { num:'ACTE II',   name:'La Montée des Ténèbres' },
-    3: { num:'ACTE III',  name:'Seul dans l\'Obscurité' },
-    4: { num:'ACTE IV',   name:'Le Sauveur' },
-    5: { num:'ACTE FINAL',name:'La Confrontation' },
-  };
+// ── EXTÉRIEUR ───────────────────────────────────────────────
+ROOMS.fastfood_outside={name:'Parking Abandonné — TastyCrousty Inc.',ambient:'factory',creaks:'low',fog:0.022,sp:{x:0,z:9},sy:Math.PI,
+build(){
+  const g=new THREE.Group();
+  // Ground
+  g.add(bx(28,0.12,32,mat(0x080608,0.97)));
+  // Side/back walls (open top)
+  g.add(bx(0.3,8,32,mat(C.DARK,0.98),-14,4,0));coll(-14.3,-16,-13.7,16);
+  g.add(bx(0.3,8,32,mat(C.DARK,0.98), 14,4,0));coll( 13.7,-16,14.3,16);
+  g.add(bx(28,8,0.3,mat(C.DARK,0.98),0,4,16));coll(-14,15.7,14,16.3);
+  // Facade nord
+  g.add(bx(9,6,0.3,mat(0x0e0810,0.98),-5.5,3,-14));
+  g.add(bx(9,6,0.3,mat(0x0e0810,0.98), 5.5,3,-14));
+  g.add(bx(3.5,1.4,0.3,mat(0x0e0810,0.98),0,DH_lintel(),-14));
+  g.add(bx(28,0.3,0.3,mat(0x0e0810),0,6.5,-14));
+  coll(-14,-14.3,-2.4,-13.7);coll(2.4,-14.3,14,-13.7);
+  function DH_lintel(){return 3.45;}
+  // Enseigne lumineuse
+  g.add(bx(7.8,1,0.14,mat(0x1a0800,0.4,0.1),0,5,-14.1));
+  g.add(bx(7.5,0.7,0.04,mat(0xcc5500,0.2,0,0xcc4400,0.72),0,5,-14.04));
+  const sl=plight(g,0xdd6600,0.8,6,0,5.5,-13.5);animL(sl,0.7,0.7,0.3);
+  // Fenêtres (lueur rouge inside)
+  [[-5,2.5],[-5,4],[5,2.5],[5,4]].forEach(([wx,wy])=>{
+    g.add(bx(1.3,0.9,0.08,bmat(0x100202,0.8),wx,wy,-14.12));
+    const wl=plight(g,0x1a0000,0.15,2.5,wx,wy,-13.8);animL(wl,0.12,1.2,0.06);
+  });
+  // Benne
+  const dump=bx(1.8,1.2,0.9,mat(0x1c1c1c,0.85,0.2),7,0.6,5);
+  inter(dump,'Fouiller la poubelle','search_dumpster',g);coll(6.1,4.55,7.9,5.45);
+  g.add(bx(1.8,0.08,0.9,mat(0x282828,0.7,0.3),7,1.25,5));
+  // Papier au sol
+  const paper=bx(0.14,0.01,0.1,mat(0x8a7a5a),-1,0.01,-11.5);
+  inter(paper,'Lire le mémo','read_memo_w1',g);
+  // Fissures sol
+  for(let i=0;i<10;i++){const cr=new THREE.Mesh(new THREE.PlaneGeometry(0.06,2+Math.random()*4),mat(0x050505));cr.rotation.set(-Math.PI/2,0,Math.random()*Math.PI);cr.position.set((Math.random()-.5)*22,0.01,(Math.random()-.5)*26);g.add(cr);}
+  // Lumière de lune
+  const moon=new THREE.DirectionalLight(0x060620,0.5);moon.position.set(8,12,6);g.add(moon);
+  // Door trigger
+  doorTrig(-1.6,-14.8,1.6,-13.4,'fastfood_dining',0,-3,0);
+  return g;
+},
+onEnter(){if(!G.flags.outside_dialog){G.flags.outside_dialog=true;schedDlg('intro_outside',1500);}}
+};
 
-  const ct = chapterTitles[n];
-  if(ct) {
-    const card = document.getElementById('chapter-card');
-    document.getElementById('chapter-number').textContent = ct.num;
-    document.getElementById('chapter-name').textContent = ct.name;
-    card.classList.remove('hidden');
-    setTimeout(()=>card.classList.add('hidden'), 3500);
+// ── SALLE À MANGER ───────────────────────────────────────────
+ROOMS.fastfood_dining={name:'Salle à Manger — Zone Contaminée',ambient:'factory',creaks:'low',fog:0.085,sp:{x:0,z:5},sy:Math.PI,
+build(){
+  const g=new THREE.Group();const W=12,H=3.5,D=14;
+  buildRoom(g,W,H,D,C.DW,true,true);
+  doorTrig(-1.6,D/2-0.6,1.6,D/2+1.6,'fastfood_outside',0,8,0);
+  doorTrig(-1.6,-D/2-1.4,1.6,-D/2+0.4,'fastfood_kitchen',0,4,Math.PI);
+  // Menu board
+  const mb=bx(4,2.2,0.06,mat(0x1a0c0e,0.5),0,2.2,-D/2+0.1);inter(mb,'Lire le menu','read_menu',g);
+  // Comptoir
+  const ctr=bx(4.2,1.05,0.8,mat(C.MTD,0.5,0.2),2,0.52,-3.5);inter(ctr,'Fouiller le comptoir','search_counter',g);
+  g.add(bx(4.4,0.08,0.9,mat(C.MT,0.35,0.4),2,1.08,-3.5));coll(-0.1,-4.5,4.1,-3.1);
+  // Tache de sang
+  const st=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.65),mat(C.BL,0.7));
+  st.rotation.x=-Math.PI/2;st.position.set(1,0.01,1);inter(st,'Examiner la tache','stain_inspect',g);
+  // Tables renversées
+  [[-2,0,0],[3.5,0,-1.5],[4,0,2.5],[-3.5,0,-2.5],[-4.5,0,3]].forEach(([x,,z])=>{
+    const t=bx(1.5,0.07,0.8,mat(C.WD,0.8));t.position.set(x,0.55+Math.random()*0.4,z);t.rotation.set((Math.random()-.5)*.55,Math.random()*Math.PI,(Math.random()-.5)*.4);g.add(t);
+    const ch=bx(0.48,0.04,0.46,mat(C.WD,0.85));ch.position.set(x+(Math.random()-.5),0.38+Math.random()*.55,z+(Math.random()-.5));ch.rotation.z=(Math.random()-.5)*.8;g.add(ch);
+  });
+  // Note au sol
+  const note=bx(0.18,0.01,0.13,mat(0x8a7a5a),-3.8,0.01,-2.8);inter(note,'Griffonnage au sol','read_scratched',g);
+  // Lumière rouge clignotante
+  const rl=plight(g,0xff1100,0.35,7,0,H-0.3,-2);animL(rl,0.3,2.1,0.2);
+  g.add(bx(0.08,0.08,0.08,bmat(0xff2200),0,H-0.2,-2));
+  // Rayon de lune (cône visuel)
+  const cone=new THREE.Mesh(new THREE.ConeGeometry(0.5,3,6),bmat(0x10102a,0.06));
+  cone.position.set(W/2-1,1.5,-1.5);cone.rotation.z=Math.PI/8;g.add(cone);
+  return g;
+},
+onEnter(){
+  if(!G.flags.dining_entered){G.flags.dining_entered=true;schedDlg('act1_dining_enter',800);}
+  if(G.chapter===2&&!G.flags.tens_shown){G.flags.tens_shown=true;schedDlg('act2_tension_start',1500);}
+}
+};
+
+// ── CUISINE ──────────────────────────────────────────────────
+ROOMS.fastfood_kitchen={name:'Cuisine Industrielle',ambient:'tension',creaks:'low',fog:0.11,sp:{x:0,z:3.5},sy:Math.PI,
+build(){
+  const g=new THREE.Group();const W=10,H=3,D=10;
+  buildRoom(g,W,H,D,C.DW,true,true);
+  doorTrig(-1.6,D/2-0.5,1.6,D/2+1.5,'fastfood_dining',0,-5,Math.PI);
+  doorTrig(-1.6,-D/2-1.4,1.6,-D/2+0.4,'fastfood_storage',0,4.5,Math.PI);
+  // Congélateur walk-in
+  const frz=bx(2.6,H,0.22,mat(0x0d1a20,0.35,0.35),3.5,H/2,-D/2+0.12);
+  inter(frz,'Ouvrir le congélateur','open_freezer',g);coll(2.2,-D/2-0.15,4.8,-D/2+0.35);
+  g.add(bx(2.6,H,0.05,bmat(0xc8e8ff,0.04),3.5,H/2,-D/2+0.16));
+  const rl=plight(g,0xff0000,0.5,2,3.5,H-0.25,-D/2+0.22);animL(rl,0.45,1.8,0.35);
+  g.add(bx(0.07,0.07,0.07,bmat(0xff0000),3.5,H-0.25,-D/2+0.22));
+  // Casiers
+  for(let i=0;i<2;i++){const lk=bx(0.65,2.1,0.42,mat(C.MTD,0.65,0.35),W/2-0.35,1.05,-1.5+i*1.6);inter(lk,'Casier employé','search_locker',g);}
+  coll(W/2-0.8,-2.5,W/2,1.5);
+  // Tables de préparation
+  bench(g,-1.5,-0.8,2.8);
+  // Caisses
+  const cr=bx(1.2,0.88,0.9,mat(C.WD,0.9),-W/2+0.8,0.44,1.2);inter(cr,'Fouiller les caisses','search_crate',g);
+  coll(-W/2-0.05,0.7,-W/2+1.6,1.7);
+  // Tuyaux plafond
+  for(let i=0;i<3;i++){const pipe=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,W,6),mat(C.MTD,0.6,0.5));pipe.rotation.z=Math.PI/2;pipe.position.set(0,H-0.22,-2+i*2);g.add(pipe);}
+  plight(g,0x1a0500,0.4,8,0,H-0.4,0);
+  return g;
+},
+onEnter(){if(!G.flags.kit_entered){G.flags.kit_entered=true;schedDlg('act1_kitchen_enter',600);}}
+};
+
+// ── STOCKAGE ─────────────────────────────────────────────────
+ROOMS.fastfood_storage={name:'Réserve — Zone Restreinte',ambient:'tension',creaks:'low',fog:0.13,sp:{x:0,z:4.5},sy:Math.PI,
+build(){
+  const g=new THREE.Group();const W=8,H=3,D=12;
+  buildRoom(g,W,H,D,C.DW,G.flags.shelf_moved,true);
+  doorTrig(-1.6,D/2-0.5,1.6,D/2+1.5,'fastfood_kitchen',0,-4,Math.PI);
+  if(G.flags.shelf_moved)doorTrig(-1.2,-D/2-1.4,1.2,-D/2+0.3,'office',0,2.5,0);
+  // Étagères
+  shelf(g,-W/2+0.5,-2);shelf(g,-W/2+0.5,1);shelf(g,-W/2+0.5,4);
+  shelf(g,W/2-0.5,-2); shelf(g,W/2-0.5,1); shelf(g,W/2-0.5,4);
+  // Boîtes Lot 666
+  [-.5,0,.5].forEach(dx=>{g.add(bx(0.4,0.38,0.36,mat(0x200810,0.9,0,0x880000,0.4),dx,1.6,-D/2+0.7));});
+  const el=plight(g,0x550000,0.25,2,0,0.6,-D/2+0.7);animL(el,0.2,1.1,0.1);
+  const eb=bx(0.55,0.5,0.5,mat(0x3a1a00,0.9),0,0.25,1.5);inter(eb,'Boîtes TC Lot #666','examine_boxes',g);
+  // Étagère secrète / passage
+  if(!G.flags.shelf_moved){
+    const hs=bx(2.4,H,0.22,mat(C.MTD,0.9),0,H/2,-D/2+0.12);
+    inter(hs,"Déplacer l'étagère",'move_shelf',g);coll(-1.3,-D/2-0.15,1.3,-D/2+0.35);
+  }else{
+    const pl=plight(g,0x220008,0.3,3,0,1,-D/2-0.5);animL(pl,0.25,2.5,0.12);
   }
+  plight(g,0x100305,0.5,10,0,H-0.4,0);
+  return g;
+}
+};
 
-  const sceneMap = {1:'fastfood_outside', 2:'fastfood_dining', 3:'basement', 4:'ritual_chamber', 5:'ritual_chamber'};
-  setTimeout(()=>{
-    gotoScene(sceneMap[n] || 'fastfood_outside');
-  }, ct ? 1000 : 0);
+// ── BUREAU ───────────────────────────────────────────────────
+ROOMS.office={name:"Bureau du Directeur",ambient:'tension',creaks:'low',fog:0.1,sp:{x:0,z:2.5},sy:Math.PI,
+build(){
+  const g=new THREE.Group();const W=8,H=3,D=8;
+  buildRoom(g,W,H,D,C.DW,true,true);
+  doorTrig(-1.6,D/2-0.5,1.6,D/2+1.5,'fastfood_storage',0,-4.5,Math.PI);
+  doorTrig(-1.6,-D/2-1.4,1.6,-D/2+0.3,'basement',0,4,0);
+  // Bureau
+  const desk=bx(2.5,0.07,1.2,mat(C.WD,0.65),0,0.85,-1.5);inter(desk,'Fouiller le bureau','search_desk',g);
+  g.add(bx(2.5,0.85,1.2,mat(0x180e06,0.85),0,0.42,-1.5));coll(-1.3,-2.15,1.3,-0.9);
+  g.add(bx(0.62,0.42,0.05,mat(0x0a0c10,0.35,0.35),0.4,1.12,-1.62));g.add(bx(0.18,0.04,0.18,mat(C.MT,0.35,0.4),0.4,0.9,-1.62));
+  // Classeur
+  const cab=bx(0.75,1.8,0.5,mat(C.MTD,0.65,0.35),W/2-0.45,0.9,-2);inter(cab,'Classeur de dossiers','search_cabinet',g);
+  coll(W/2-0.9,-2.3,W/2,-1.7);
+  // Dessins mur ouest (yeux)
+  for(let i=0;i<7;i++){const eye=new THREE.Mesh(new THREE.PlaneGeometry(0.28,0.2),bmat(0x3a0808,0.32+Math.random()*0.18));eye.position.set(-W/2+0.04,0.8+i*0.28,-2.5+i*0.22);eye.rotation.y=Math.PI/2;g.add(eye);}
+  const wallI=bx(0.04,2,2.5,bmat(0x000000,0),-W/2+0.06,1.5,-1);inter(wallI,"Examiner les dessins",'view_wall',g);
+  // Chaise
+  g.add(bx(0.5,0.04,0.5,mat(C.MTD,0.7),0,0.49,-0.4));g.add(bx(0.5,0.5,0.04,mat(C.MTD,0.7),0,0.78,-0.17));
+  // Papiers au sol
+  for(let i=0;i<7;i++){const p=new THREE.Mesh(new THREE.PlaneGeometry(0.22,0.16),mat(0x8a7a5a,0.8));p.rotation.x=-Math.PI/2;p.rotation.z=Math.random()*Math.PI;p.position.set((Math.random()-.5)*5,0.01,(Math.random()-.5)*5);g.add(p);}
+  const rl=plight(g,0x1a0008,0.6,8,0,H-0.4,0);animL(rl,0.55,0.5,0.1);
+  return g;
+},
+onEnter(){if(G.chapter===2&&!G.flags.shadow_seen){G.flags.shadow_seen=true;schedDlg('act2_shadow_seen',2200);}}
+};
 
-  if(n===2) { Audio.play('stinger'); startScreamers(); }
-  if(n>=3)  { document.getElementById('game-screen').classList.add('tense-mode'); }
+// ── SOUS-SOL ─────────────────────────────────────────────────
+ROOMS.basement={name:'Sous-Sol — Laboratoire Interdit',ambient:'horror',creaks:'high',fog:0.13,sp:{x:0,z:4},sy:Math.PI,
+build(){
+  const g=new THREE.Group();const W=10,H=2.8,D=12;
+  buildRoom(g,W,H,D,C.CN,G.flags.lab_unlocked,true);
+  doorTrig(-1.6,D/2-0.5,1.6,D/2+1.5,'office',0,-3,Math.PI);
+  if(G.flags.lab_unlocked)doorTrig(-1.6,-D/2-1.4,1.6,-D/2+0.3,'lab_main',0,5,0);
+  // Paillasse + bocaux
+  bench(g,-2.8,-0.8,2.4);
+  for(let i=0;i<4;i++){const j=jar(g,-3.6+i*0.55,-0.8);inter(j,'Examiner le bocal','examine_jars',g);}
+  // Journal
+  const jrn=bx(0.2,0.03,0.15,mat(0x6a5a3a,0.9),-2,0.97,-0.8);inter(jrn,'Journal de Grunholt','read_journal',g);
+  // Porte labo (code)
+  const labDoor=bx(2.5,H-0.5,0.12,mat(G.flags.lab_unlocked?0x0a0f1a:0x150808,0.5,0.4),0,H/2-0.25,-D/2+0.08);
+  if(!G.flags.lab_unlocked){inter(labDoor,'🔒 Code requis — Panneau','open_lab_door',g);coll(-1.4,-D/2-0.15,1.4,-D/2+0.35);}
+  else g.add(labDoor);
+  const cp=bx(0.28,0.38,0.05,bmat(G.flags.lab_unlocked?0x003300:0x440000),1.2,1.3,-D/2+0.12);
+  inter(cp,'Panneau de code','open_lab_door',g);
+  // Bandes lumineuses rouges urgence
+  [-W/2+0.18,W/2-0.18].forEach(lx=>{
+    g.add(bx(0.06,0.06,D-1,bmat(0xff0000),lx,0.18,0));
+    const sl=plight(g,0xff0000,0.4,5,lx,0.25,0);animL(sl,0.3,1.6,0.18);
+  });
+  plight(g,0x0a0308,0.5,12,0,H-0.4,0);
+  return g;
+},
+onEnter(){
+  if(!G.flags.bsmt_entered){G.flags.bsmt_entered=true;document.getElementById('game-screen').classList.add('tense-mode');schedDlg('act3_alone_monologue',1200);Audio.play('stinger');}
+}
+};
+
+// ── LABO PRINCIPAL ───────────────────────────────────────────
+ROOMS.lab_main={name:'Laboratoire Principal — Zone X-77',ambient:'horror',creaks:'high',fog:0.09,sp:{x:0,z:5},sy:Math.PI,
+build(){
+  const g=new THREE.Group();const W=12,H=3,D=14;
+  buildRoom(g,W,H,D,C.CN,G.flags.ritual_complete,true);
+  doorTrig(-1.6,D/2-0.5,1.6,D/2+1.5,'basement',0,-D/2+2,Math.PI);
+  if(G.flags.ritual_complete)doorTrig(-1.6,-D/2-1.4,1.6,-D/2+0.3,'ritual_chamber',0,4,0);
+  // Cercle rituel
+  const r1=new THREE.Mesh(new THREE.RingGeometry(1.8,2,36),bmat(0xdd3300,G.flags.ritual_complete?0.75:0.3));r1.rotation.x=-Math.PI/2;r1.position.set(0,0.01,2);g.add(r1);
+  const r2=new THREE.Mesh(new THREE.RingGeometry(0.65,0.78,36),bmat(0xaa1100,0.9));r2.rotation.x=-Math.PI/2;r2.position.set(0,0.01,2);g.add(r2);
+  const ci=bx(0.04,0.04,4.4,bmat(0x000000,0),0,0.02,2);
+  inter(ci,G.flags.ritual_complete?'Rituel accompli ✓':G.flags.found_flamby?'Placer les artefacts':'Examiner le cercle',
+    G.flags.found_flamby?'placement_puzzle':'examine_circle',g);
+  const cl=plight(g,G.flags.ritual_complete?0xff5500:0x220000,G.flags.ritual_complete?1.2:0.3,5,0,0.5,2);
+  animL(cl,G.flags.ritual_complete?1.1:0.25,1.4,G.flags.ritual_complete?0.35:0.08);
+  // Tableau blanc
+  const wb=bx(3,2.2,0.06,mat(0xb8c8c0,0.65),2.5,2,-D/2+0.08);inter(wb,'Lire le tableau blanc','read_whiteboard',g);
+  // Tables de labo + béchers
+  [-3.5,3.5].forEach(lx=>{
+    bench(g,lx,-3,3.2);
+    for(let b=0;b<5;b++){const bk=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.045,0.18,6),new THREE.MeshStandardMaterial({color:0x002a1a,transparent:true,opacity:0.65,roughness:0.08}));bk.position.set(lx-1.3+b*0.55,1.1,-3);g.add(bk);plight(g,0x003418,0.08,0.6,lx-1.3+b*0.55,1.15,-3);}
+  });
+  // Porte chambre rituelle
+  const cd=bx(2.5,H-0.5,0.12,mat(G.flags.ritual_complete?0x100520:0x080508,0.55,0.3),0,H/2-0.25,-D/2+0.08);
+  if(!G.flags.ritual_complete){inter(cd,'Porte mystérieusement verrouillée','examine_circle',g);coll(-1.4,-D/2-0.15,1.4,-D/2+0.35);}
+  else g.add(cd);
+  const bl=plight(g,0x100040,0.9,16,0,H-0.5,0);animL(bl,0.8,0.35,0.12);
+  return g;
+},
+onEnter(){
+  if(!G.flags.lab_entered){G.flags.lab_entered=true;document.getElementById('game-screen').classList.add('tense-mode');}
+  if(!G.flags.found_flamby&&G.flags.cabinet_searched)G.flags.found_flamby=true;
+}
+};
+
+// ── CHAMBRE RITUELLE ─────────────────────────────────────────
+ROOMS.ritual_chamber={name:'Chambre Rituelle — Niveau -3',ambient:'horror',creaks:'high',fog:0.085,sp:{x:0,z:3},sy:Math.PI,
+build(){
+  const g=new THREE.Group();const W=10,H=3,D=10;
+  buildRoom(g,W,H,D,C.ST,false,true);
+  doorTrig(-1.6,D/2-0.5,1.6,D/2+1.5,'lab_main',0,-5,Math.PI);
+  // Autel
+  const alt=bx(2,1.15,1,mat(C.ST,0.97),0,0.57,-3.2);
+  inter(alt,G.flags.ritual_complete?"Invoquer le Sauveur ✝":"Examiner l'autel",G.flags.ritual_complete?'summon_flamby':'examine_altar',g);
+  g.add(bx(2.2,0.1,1.2,mat(C.STD,0.97),0,1.2,-3.2));coll(-1.2,-3.8,1.2,-2.7);
+  // Anneau rune
+  const rr=new THREE.Mesh(new THREE.RingGeometry(2.3,2.55,36),bmat(0x600080,0.55));rr.rotation.x=-Math.PI/2;rr.position.set(0,0.01,0);g.add(rr);
+  // Artefacts sur l'autel si rituel fait
+  if(G.flags.ritual_complete)[-.5,0,.5].forEach((dx,i)=>g.add(bx(0.18,0.18,0.06,mat(0x4a3800,0.5,0,0xcc8800,0.8),dx,1.32,-3.2)));
+  // Bougies
+  [[-1.8,1.2],[1.8,1.2],[-1,-.8],[1,-.8],[-3.5,-.2],[3.5,-.2]].forEach(([x,z])=>candle(g,x,z));
+  // Runes mur
+  for(let i=0;i<5;i++){const r=new THREE.Mesh(new THREE.PlaneGeometry(0.35,0.35),bmat(0x600080,0.2+Math.random()*0.18));r.position.set(-W/2+0.04,0.8+i*0.5,-3+i*0.5);r.rotation.y=Math.PI/2;g.add(r);}
+  const pl=plight(g,0x200040,0.8,12,0,H-0.5,0);animL(pl,0.7,0.4,0.18);
+  return g;
+},
+onEnter(){if(!G.flags.chamber){G.flags.chamber=true;if(G.chapter<4)advChapter(4);}}
+};
+
+// ════════════════════════════════════════════════════════════
+// ROOM LOADER
+// ════════════════════════════════════════════════════════════
+function gotoRoom(id,sx,sz,yaw=0){
+  doorTriggers=[];
+  Audio.play('transition');
+  fade(350,()=>loadRoom(id,sx,sz,yaw));
+}
+function loadRoom(id,sx,sz,yaw=0){
+  if(roomGroup){scene.remove(roomGroup);roomGroup=null;}
+  interactables=[];roomColliders=[];doorTriggers=[];animLights=[];
+  G.scene=id;
+  const def=ROOMS[id];if(!def){console.warn('Room not found:',id);return;}
+  document.getElementById('location-name').textContent=def.name;
+  roomGroup=def.build();scene.add(roomGroup);
+  scene.fog=new THREE.FogExp2(0x000000,def.fog??0.07);
+  const sp=def.sp;
+  camera.position.set(sx??sp?.x??0,PH,sz??sp?.z??0);
+  Ctrl.yaw=yaw!==0?yaw:(def.sy??0);Ctrl.pitch=0;
+  camera.rotation.set(0,Ctrl.yaw,0,'YXZ');
+  Audio.stopRandomCreaks();Audio.playAmbient(def.ambient??'factory');Audio.startRandomCreaks(def.creaks??'low');
+  if(def.onEnter)def.onEnter();
 }
 
-function advanceChapter(n) {
-  if(n <= G.chapter) return;
-  G.chapter = n;
-  startChapter(n);
-}
-
-// ── SCENE NAVIGATION ─────────────────────────
-function gotoScene(sceneId) {
-  G.scene = sceneId;
-  const def = SCENES_DEF[sceneId];
-  if(!def) return;
-
-  Audio.stopRandomCreaks();
-  Audio.playAmbient(def.ambient || 'factory');
-  Audio.startRandomCreaks(def.creaks || 'low');
-
-  document.getElementById('location-name').textContent = def.name;
-  renderScene();
-  buildHotspots(def);
-  if(def.onEnter) def.onEnter();
-  startSceneLoop();
-}
-
-function startSceneLoop() {
-  if(G.sceneAnim) cancelAnimationFrame(G.sceneAnim);
-  function loop() {
-    G.sceneAnim = requestAnimationFrame(loop);
-    if(!G.paused && !G.dialogActive && !G.puzzleActive) {
-      renderScene();
+// ════════════════════════════════════════════════════════════
+// GAME LOOP
+// ════════════════════════════════════════════════════════════
+let flashFT=0,flashFN=0;
+function startLoop(){
+  gameRunning=true;
+  if(loopId)cancelAnimationFrame(loopId);
+  function loop(){
+    loopId=requestAnimationFrame(loop);
+    const dt=Math.min(clock.getDelta(),0.05);
+    if(!G.paused){
+      Ctrl.update(dt);updateRay();
+      // Animate lights
+      const t=clock.elapsedTime;
+      for(const {l,base,freq,amp} of animLights)l.intensity=base+Math.sin(t*freq*Math.PI*2)*amp;
+      // Flashlight flicker (rare, horror mode)
+      flashFT+=dt;
+      if(flashFT>flashFN&&G.chapter>=2&&flashlight.visible){
+        if(Math.random()<0.012){flashlight.intensity=0.4+Math.random()*0.8;setTimeout(()=>flashlight.intensity=4.5,55+Math.random()*80);}
+        flashFN=flashFT+1+Math.random()*5;
+      }
     }
+    renderer.render(scene,camera);
   }
   loop();
 }
 
-function renderScene() {
-  const def = SCENES_DEF[G.scene];
-  if(!def || !def.draw) return;
-  const ctx=G.sceneCtx, w=G.sceneCanvas.width, h=G.sceneCanvas.height;
-  ctx.clearRect(0,0,w,h);
-  def.draw(ctx, w, h);
-}
-
-// ── HOTSPOTS ─────────────────────────────────
-function buildHotspots(def) {
-  const layer = document.getElementById('hotspots-layer');
-  layer.innerHTML = '';
-  if(!def.hotspots) return;
-
-  def.hotspots.forEach(hs => {
-    // Skip if flag condition not met
-    if(hs.hideIfFlag && G.flags[hs.hideIfFlag]) return;
-    // Show only if flag required
-    if(hs.id === 'hs_hidden_door' && !G.flags.shelf_moved) return;
-    if(hs.id === 'hs_ritual_puzzle' && (!G.flags.found_flamby_note)) return;
-    if(hs.id === 'hs_ritual_circle' && G.flags.found_flamby_note) return;
-    if(hs.id === 'hs_summon' && !G.flags.ritual_complete) return;
-
-    const div = document.createElement('div');
-    div.className = 'hotspot';
-    div.style.left = hs.x;
-    div.style.top  = hs.y;
-    div.style.width= hs.w;
-    div.style.height=hs.h;
-
-    const label = document.createElement('span');
-    label.className = 'hotspot-label';
-    label.textContent = hs.label;
-    div.appendChild(label);
-
-    const pulse = document.createElement('div');
-    pulse.className = 'hotspot-pulse';
-    div.appendChild(pulse);
-
-    div.addEventListener('click', ()=>handleHotspot(hs));
-    layer.appendChild(div);
-  });
-}
-
-// ── ACTIONS ──────────────────────────────────
-function handleHotspot(hs) {
-  if(G.dialogActive || G.puzzleActive || G.paused) return;
+// ════════════════════════════════════════════════════════════
+// ACTIONS
+// ════════════════════════════════════════════════════════════
+function handleAction(ud){
+  if(!ud?.action||G.dialogActive||G.puzzleActive)return;
   Audio.play('click');
-
-  const action = hs.action;
-
-  // Locked door checks
-  if(hs.locked) {
-    if(hs.needsItem && !G.inventory.includes(hs.needsItem)) {
-      showToast('Cette porte est verrouillée.');
-      Audio.play('door_creak');
-      return;
-    }
-    if(hs.needsPuzzle && !G.flags[hs.needsPuzzle+'_done']) {
-      openPuzzle(hs.needsPuzzle);
-      return;
-    }
-  }
-
-  // Needs items for ritual
-  if(hs.action === 'placement_puzzle') {
-    const needed = ['fragment_cuve','formule_x77','sceau_tc'];
-    const missing = needed.filter(it=>!G.inventory.includes(it));
-    if(missing.length > 0) {
-      showToast(`Il vous manque des artefacts (${missing.length} restant${missing.length>1?'s':''}).`);
-      return;
-    }
-  }
-
-  switch(action) {
-    case 'go_outside':     gotoScene('fastfood_outside'); break;
-    case 'go_dining':      enterDoor(); break;
-    case 'go_kitchen':     enterKitchen(); break;
-    case 'go_storage':     Audio.play('door_creak'); gotoScene(G.scene==='fastfood_storage'?'fastfood_kitchen':'fastfood_storage'); break;
-    case 'go_basement':    Audio.play('door_creak'); gotoScene('basement'); break;
-    case 'go_lab':         Audio.play('door_creak'); gotoScene('lab_main'); break;
-    case 'go_chamber':     Audio.play('door_creak'); gotoScene('ritual_chamber'); break;
-    case 'look_sign':      showToast('"TastyCrousty" — l\'enseigne clignote faiblement. Certaines lettres sont brûlées.'); break;
-    case 'search_dumpster':searchDumpster(); break;
-    case 'search_counter': searchCounter(); break;
-    case 'read_menu':      showNote('note_memo_w1'); break;
-    case 'stain_inspect':  scheduleDialog('act1_stain_investigate', 100); break;
-    case 'search_table':   searchUnderTable(); break;
-    case 'open_freezer':   openFreezer(); break;
-    case 'search_locker':  searchLocker(); break;
-    case 'search_crate':   searchCrate(); break;
-    case 'examine_boxes':  examineBoxes(); break;
-    case 'find_hidden':    gotoBasement(); break;
-    case 'move_shelf':     moveShelf(); break;
-    case 'search_desk':    searchDesk(); break;
-    case 'search_cabinet': searchCabinet(); break;
-    case 'view_wall':      viewWallDrawings(); break;
-    case 'read_journal':   readJournal(); break;
-    case 'examine_jars':   examineJars(); break;
-    case 'open_lab_door':  openPuzzle('code_puzzle'); break;
-    case 'read_whiteboard':readWhiteboard(); break;
-    case 'examine_circle': examineCircle(); break;
-    case 'placement_puzzle': openPuzzle('placement_puzzle'); break;
-    case 'examine_altar':  examineAltar(); break;
-    case 'summon_flamby':  summonFlamby(); break;
+  switch(ud.action){
+    case 'search_dumpster': searchDumpster();break;
+    case 'read_memo_w1': case 'read_menu': showNote('note_memo_w1');break;
+    case 'search_counter':  searchCounter();break;
+    case 'stain_inspect':   schedDlg('act1_stain_investigate',50);break;
+    case 'read_scratched':  showNote('note_scratched');break;
+    case 'open_freezer':    openFreezer();break;
+    case 'search_locker':   searchLocker();break;
+    case 'search_crate':    searchCrate();break;
+    case 'examine_boxes':   examineBoxes();break;
+    case 'move_shelf':      moveShelf();break;
+    case 'search_desk':     searchDesk();break;
+    case 'search_cabinet':  searchCabinet();break;
+    case 'view_wall':       viewWall();break;
+    case 'read_journal':    showNote('note_journal_day47');break;
+    case 'examine_jars':    examineJars();break;
+    case 'open_lab_door':   openPuzzle('code_puzzle');break;
+    case 'read_whiteboard': readWB();break;
+    case 'examine_circle':  exCircle();break;
+    case 'placement_puzzle':openPuzzle('placement_puzzle');break;
+    case 'examine_altar':   exAltar();break;
+    case 'summon_flamby':   summonFlamby();break;
+    default: showToast('Vous examinez ça mais ne trouvez rien d\'utile.');
   }
 }
-
-// ── SPECIFIC ACTIONS ─────────────────────────
-function enterDoor() {
-  Audio.play('door_creak');
-  if(G.chapter < 1) advanceChapter(1);
-  gotoScene('fastfood_dining');
+function searchDumpster(){if(G.flags.dump_done){showToast('Déjà fouillé.');return;}G.flags.dump_done=true;Audio.play('item_pickup');addItem('crowbar','🔧','Pied-de-biche');showToast('Vous trouvez un pied-de-biche rouillé.');}
+function searchCounter(){if(G.flags.counter_done){showToast('Vide.');return;}G.flags.counter_done=true;Audio.play('item_pickup');addItem('kitchen_key','🗝️','Clé Cuisine');showToast('Clé de la cuisine trouvée !');schedDlg('act1_found_memo',500);}
+function openFreezer(){if(G.flags.frz_done){showToast('Le congélateur est vide. Froid.');return;}schedDlg('act1_freezer_before',100);setTimeout(()=>{if(G.flags.frz_done)return;G.flags.frz_done=true;triggerScreamer('freezer',()=>{showToast("Rien. C'était une ombre.");if(G.chapter<2)setTimeout(()=>advChapter(2),2500);});},2200);}
+function searchLocker(){if(G.flags.lock_done){showToast('Vide.');return;}G.flags.lock_done=true;Audio.play('door_creak');Audio.play('paper_pickup');showNote('note_journal_day1');}
+function searchCrate(){if(G.flags.crate_done){showToast('Vous avez déjà pris ce qu\'il y avait.');return;}G.flags.crate_done=true;Audio.play('item_pickup');addItem('fragment_cuve','🪨','Fragment Cuve Nº6');showToast('Fragment de la Cuve Nº6 — métal bizarre, chaud au toucher.');}
+function examineBoxes(){if(!G.flags.boxes_ex){G.flags.boxes_ex=true;Audio.play('stinger');showToast('Des dizaines de boîtes TC. Date de péremption : "JAMAIS". Le lot #666 pulse faiblement.');schedDlg('act2_byilhan_panic',1200);}else showToast('Ces boîtes vous donnent la nausée.');}
+function moveShelf(){if(!G.inventory.includes('crowbar')){showToast("Cette étagère est trop lourde. Il vous faudrait un outil solide.");return;}G.flags.shelf_moved=true;Audio.play('door_creak');Audio.play('rumble');showToast("L'étagère grince et révèle un passage obscur vers le sous-sol...");setTimeout(()=>loadRoom('fastfood_storage'),1000);}
+function searchDesk(){if(G.flags.desk_done){showToast('Déjà fouillé.');return;}G.flags.desk_done=true;Audio.play('paper_pickup');addItem('formule_x77','📜','Formule X-77');showNote('note_warning_flamby');}
+function searchCabinet(){if(G.flags.cab_done){showToast('Les dossiers sont éparpillés.');return;}G.flags.cab_done=true;Audio.play('door_creak');Audio.play('paper_pickup');G.flags.found_flamby=true;addItem('sceau_tc','🔖','Sceau TastyCrousty');showNote('note_journal_day47');schedDlg('act3_found_flamby_note',5000);}
+function viewWall(){showToast('Des dizaines d\'yeux dessinés frénétiquement. "IL REVIENT. IL EST DANS LES MURS. TROUVEZ FLAMBY."');Audio.play('heartbeat');}
+function examineJars(){showToast('Des bocaux hermétiques. Des TastyCrousty en phase larvaire. Ils bougent encore. Lentement.');Audio.play('stinger');if(!G.flags.jar_scr&&G.chapter>=3){G.flags.jar_scr=true;setTimeout(()=>triggerScreamer('jar',()=>{}),1800);}}
+function readWB(){showToast('"Sujet F — Flamby. Ventre de Fer : CONFIRMÉ. Immunité X-77 : 100%. Solution finale : LAISSER FLAMBY MANGER."');if(!G.flags.found_flamby){G.flags.found_flamby=true;loadRoom(G.scene);}}
+function exCircle(){if(!G.flags.found_flamby)showToast('Un cercle rituel gravé dans le béton. Des symboles anciens. Vous ne comprenez pas encore.');else showToast('Le cercle attend les 3 artefacts : Fragment de Cuve (Nord), Formule X-77 (Sud-O), Sceau TC (Sud-E).');}
+function exAltar(){showToast(G.flags.ritual_complete?"L'autel est prêt. Invoquez le Sauveur.":"L'autel vibre légèrement. Il attend quelque chose.");}
+function summonFlamby(){
+  if(!G.flags.ritual_complete){showToast('Le rituel n\'est pas encore accompli.');return;}
+  if(G.flags.flamby_summ){showToast('Flamby est déjà en route.');return;}
+  G.flags.flamby_summ=true;Audio.play('stinger');advChapter(4);
+  schedDlg('act4_flamby_arrives',600);schedDlg('act4_flamby_explains',9500);
+  schedDlg('act4_prep_ritual',18500);schedDlg('final_confrontation',27500);
+  setTimeout(()=>{showScreen('cinematic-screen');gameRunning=false;if(loopId)cancelAnimationFrame(loopId);Cinematic.play('finale',()=>startEpilogue());},32000);
 }
 
-function enterKitchen() {
-  if(!G.inventory.includes('kitchen_key') && !G.flags.kitchen_unlocked) {
-    scheduleDialog('act1_freezer_before', 100);
-    showToast('La porte est verrouillée. Il faut une clé.');
-    return;
-  }
-  G.flags.kitchen_unlocked = true;
-  Audio.play('door_creak');
-  gotoScene('fastfood_kitchen');
+// ════════════════════════════════════════════════════════════
+// SCREAMER
+// ════════════════════════════════════════════════════════════
+function triggerScreamer(type,cb){
+  Audio.play('screamer');
+  const ov=document.getElementById('screamer-overlay');
+  const sc=document.getElementById('screamer-canvas');
+  sc.width=window.innerWidth;sc.height=window.innerHeight;
+  ov.classList.remove('hidden');
+  drawScreamer(sc.getContext('2d'),sc.width,sc.height);
+  let sh=0;const si=setInterval(()=>{camera.rotation.z=(Math.random()-.5)*0.05;if(++sh>8){clearInterval(si);camera.rotation.z=0;}},30);
+  setTimeout(()=>{ov.classList.add('hidden');sc.getContext('2d').clearRect(0,0,sc.width,sc.height);if(cb)cb();},1650);
 }
-
-function searchDumpster() {
-  if(G.flags.dumpster_searched) { showToast('Vous avez déjà fouillé ici.'); return; }
-  G.flags.dumpster_searched = true;
-  Audio.play('paper_pickup');
-  addItem('crowbar','🔧','Pied-de-biche');
-  showToast('Vous trouvez un pied-de-biche rouillé. Utile ?');
-}
-
-function searchCounter() {
-  if(G.flags.counter_searched) { showToast('Vous avez déjà fouillé ici.'); return; }
-  G.flags.counter_searched = true;
-  Audio.play('item_pickup');
-  addItem('kitchen_key','🗝️','Clé Cuisine');
-  showToast('Clé de la cuisine trouvée !');
-  scheduleDialog('act1_found_memo', 400);
-}
-
-function searchUnderTable() {
-  if(G.flags.table_searched) { showToast('Rien de plus ici.'); return; }
-  G.flags.table_searched = true;
-  Audio.play('paper_pickup');
-  showNote('note_scratched');
-}
-
-function openFreezer() {
-  if(G.flags.freezer_opened) { showToast('Le congélateur est vide... et froid.'); return; }
-  scheduleDialog('act1_freezer_before', 100);
-
-  setTimeout(()=>{
-    if(G.chapter < 1 || G.flags.freezer_screamed) return;
-    G.flags.freezer_opened = true;
-
-    if(G.chapter >= 1) {
-      // Screamer!
-      setTimeout(()=>{
-        G.flags.freezer_screamed = true;
-        triggerScreamer('freezer', ()=>{
-          showToast('Le congélateur est vide. Il n\'y a plus rien ici.');
-          // Advance to act2 after this
-          if(G.chapter < 2) {
-            setTimeout(()=>advanceChapter(2), 2000);
-          }
-        });
-      }, 800);
-    }
-  }, 2000);
-}
-
-function searchLocker() {
-  if(G.flags.locker_searched) { showToast('Les casiers sont vides.'); return; }
-  G.flags.locker_searched = true;
-  Audio.play('door_creak');
-  Audio.play('paper_pickup');
-  showNote('note_journal_day1');
-}
-
-function searchCrate() {
-  if(G.flags.crate_searched) { showToast('Ces caisses sont vides.'); return; }
-  G.flags.crate_searched = true;
-  Audio.play('item_pickup');
-  addItem('fragment_cuve','🪨','Fragment Cuve Nº6');
-  showToast('Fragment de la Cuve Nº6 récupéré. Un artéfact étrange...');
-}
-
-function examineBoxes() {
-  if(!G.flags.boxes_examined) {
-    G.flags.boxes_examined = true;
-    showToast('Des dizaines de boîtes TastyCrousty. Date de péremption : "JAMAIS". Le lot #666 brille d\'une lueur rouge.');
-    Audio.play('stinger');
-    scheduleDialog('act2_byilhan_panic', 1000);
-  } else {
-    showToast('Ces boîtes vous mettent mal à l\'aise.');
-  }
-}
-
-function moveShelf() {
-  if(!G.inventory.includes('crowbar')) {
-    showToast('Cette étagère est trop lourde. Il vous faudrait un outil.');
-    return;
-  }
-  Audio.play('door_creak');
-  G.flags.shelf_moved = true;
-  showToast('L\'étagère révèle un passage secret vers le sous-sol !');
-  buildHotspots(SCENES_DEF[G.scene]);
-}
-
-function gotoBasement() {
-  Audio.play('door_creak');
-  Audio.play('wind');
-  showToast('Vous descendez dans l\'obscurité...');
-  setTimeout(()=>{
-    gotoScene('basement');
-    if(G.chapter < 3) advanceChapter(3);
-  }, 1000);
-}
-
-function searchDesk() {
-  if(G.flags.desk_searched) { showToast('Vous avez déjà fouillé ici.'); return; }
-  G.flags.desk_searched = true;
-  Audio.play('paper_pickup');
-  addItem('formule_x77','📜','Formule X-77');
-  showNote('note_warning_flamby');
-}
-
-function searchCabinet() {
-  if(G.flags.cabinet_searched) { showToast('Les dossiers sont éparpillés.'); return; }
-  G.flags.cabinet_searched = true;
-  Audio.play('paper_pickup');
-  showNote('note_journal_day47');
-  scheduleDialog('act3_found_flamby_note', 4000);
-  G.flags.found_flamby_note = true;
-  addItem('sceau_tc','🔖','Sceau TastyCrousty');
-  buildHotspots(SCENES_DEF[G.scene]);
-}
-
-function viewWallDrawings() {
-  showToast('Des dizaines d\'yeux dessinés au mur... et des mots : "IL REVIENT. IL EST DANS LES MURS. TROUVEZ FLAMBY."');
-  Audio.play('heartbeat');
-}
-
-function readJournal() {
-  showNote('note_journal_day47');
-}
-
-function examineJars() {
-  showToast('Des bocaux contenant de petites créatures... Des TastyCrousty en phase larvaire. Ils bougent encore.');
-  Audio.play('stinger');
-  if(!G.flags.jars_scream && G.chapter >= 3) {
-    G.flags.jars_scream = true;
-    setTimeout(()=>triggerScreamer('jar', ()=>{}), 1500);
-  }
-}
-
-function readWhiteboard() {
-  showToast('"Sujet F (FLAMBY) — Ventre de Fer confirmé. Immunité X-77 : 100%. Solution finale : MANGER. Protocole Sauveur ACTIF."');
-  if(!G.flags.found_flamby_note) {
-    G.flags.found_flamby_note = true;
-    buildHotspots(SCENES_DEF[G.scene]);
-    showToast('Important ! Flamby est la clé. Vous devez trouver les 3 artefacts pour le cercle rituel.');
-  }
-}
-
-function examineCircle() {
-  showToast('Un cercle rituel gravé dans le sol. Il faut y placer les 3 artefacts : Fragment de Cuve, Formule X-77, Sceau TastyCrousty.');
-}
-
-function examineAltar() {
-  if(!G.flags.ritual_complete) {
-    showToast('L\'autel attend. Il faut accomplir le rituel dans le laboratoire d\'abord.');
-  } else {
-    showToast('L\'autel vibre d\'une énergie étrange. Le TastyCrousty sera attiré ici.');
-  }
-}
-
-function summonFlamby() {
-  if(!G.flags.ritual_complete) { showToast('Le rituel n\'est pas accompli.'); return; }
-  G.flags.flamby_summoned = true;
-  scheduleDialog('act4_flamby_arrives', 500);
-  scheduleDialog('act4_flamby_explains', 8000);
-  scheduleDialog('act4_prep_ritual', 16000);
-  scheduleDialog('final_confrontation', 24000);
-  setTimeout(()=>{
-    showScreen('cinematic-screen');
-    Cinematic.play('byilhan_death', ()=>{
-      // After byilhan cinematic, skip to finale if chapter 2
-      if(G.chapter === 2) {
-        advanceChapter(3);
-        gotoScene('basement');
-      } else {
-        // It's the finale
-        setTimeout(()=>{
-          showScreen('cinematic-screen');
-          Cinematic.play('finale', ()=>startEpilogue());
-        }, 500);
-      }
-    });
-  }, 30000);
-}
-
-// ════════════════════════════════════════════════
-// 7. SYSTÈME DE DIALOGUE
-// ════════════════════════════════════════════════
-let dialogQueue = [];
-let currentDialogIdx = 0;
-let currentDialogLines = [];
-
-function scheduleDialog(key, delayMs=0) {
-  setTimeout(()=>startDialog(key), delayMs);
-}
-
-function startDialog(key) {
-  if(!DIALOGS[key]) return;
-  currentDialogLines = DIALOGS[key];
-  currentDialogIdx = 0;
-  G.dialogActive = true;
-  showDialogLine();
-}
-
-function showDialogLine() {
-  if(currentDialogIdx >= currentDialogLines.length) {
-    closeDialog();
-    return;
-  }
-  const line = currentDialogLines[currentDialogIdx];
-  const box = document.getElementById('dialog-box');
-  box.classList.remove('hidden');
-
-  document.getElementById('dialog-speaker-name').textContent = line.speaker;
-  document.getElementById('dialog-text-area').textContent = '';
-
-  const portrait = document.getElementById('dialog-portrait');
-  if(line.portrait) {
-    portrait.src = `assets/characters/${line.portrait}.png`;
-    portrait.style.display = 'block';
-  } else {
-    portrait.style.display = 'none';
-  }
-
-  // Typewriter effect
-  let charIdx=0;
-  const text = line.text;
-  clearInterval(G._typeTimer);
-  G._typeTimer = setInterval(()=>{
-    document.getElementById('dialog-text-area').textContent = text.slice(0, ++charIdx);
-    if(charIdx >= text.length) clearInterval(G._typeTimer);
-  }, 22);
-
-  Audio.play('footstep');
-}
-
-function advanceDialog() {
-  clearInterval(G._typeTimer);
-  const textArea = document.getElementById('dialog-text-area');
-  const line = currentDialogLines[currentDialogIdx];
-  if(textArea.textContent.length < line.text.length) {
-    // Finish current line immediately
-    textArea.textContent = line.text;
-    return;
-  }
-  currentDialogIdx++;
-  if(currentDialogIdx < currentDialogLines.length) {
-    showDialogLine();
-  } else {
-    closeDialog();
-  }
-}
-
-function closeDialog() {
-  G.dialogActive = false;
-  document.getElementById('dialog-box').classList.add('hidden');
-}
-
-// ════════════════════════════════════════════════
-// 8. NOTES
-// ════════════════════════════════════════════════
-function showNote(noteId) {
-  const note = NOTES_DATA[noteId];
-  if(!note) return;
-  Audio.play('paper_pickup');
-
-  if(!G.notes.includes(noteId)) {
-    G.notes.push(noteId);
-    document.getElementById('notes-count').textContent = `Notes : ${G.notes.length}`;
-  }
-
-  document.getElementById('note-title-area').textContent = note.title;
-  document.getElementById('note-body').textContent = note.body;
-  document.getElementById('note-reader').classList.remove('hidden');
-}
-
-function closeNote() {
-  document.getElementById('note-reader').classList.add('hidden');
-}
-
-// ════════════════════════════════════════════════
-// 9. INVENTAIRE
-// ════════════════════════════════════════════════
-function addItem(id, emoji, name) {
-  if(G.inventory.includes(id)) return;
-  G.inventory.push(id);
-  Audio.play('item_pickup');
-  renderInventory();
-}
-
-function renderInventory() {
-  const slots = document.getElementById('inv-slots');
-  slots.innerHTML = '';
-  G.inventory.forEach(id => {
-    const items = {
-      'kitchen_key': {e:'🗝️', n:'Clé Cuisine'},
-      'crowbar':     {e:'🔧', n:'Pied-de-biche'},
-      'fragment_cuve':{e:'🪨', n:'Fragment Cuve'},
-      'formule_x77': {e:'📜', n:'Formule X-77'},
-      'sceau_tc':    {e:'🔖', n:'Sceau TC'},
-    };
-    const item = items[id] || {e:'?',n:id};
-    const div = document.createElement('div');
-    div.className = 'inv-item' + (G.selectedItem===id ? ' selected' : '');
-    div.innerHTML = `${item.e}<span class="inv-item-name">${item.n}</span>`;
-    div.addEventListener('click', ()=>{
-      G.selectedItem = (G.selectedItem===id) ? null : id;
-      renderInventory();
-    });
-    slots.appendChild(div);
+function drawScreamer(ctx,W,H){
+  ctx.fillStyle='#cc0000';ctx.fillRect(0,0,W,H);
+  const cx=W/2,cy=H/2,r=Math.min(W,H)*0.38;
+  ctx.fillStyle='#7a3e00';ctx.beginPath();ctx.ellipse(cx,cy,r,r*0.72,0,0,Math.PI*2);ctx.fill();
+  for(let i=0;i<14;i++){ctx.fillStyle=`hsl(25,${50+Math.random()*20}%,${12+Math.random()*8}%)`;ctx.beginPath();ctx.arc(cx+(Math.random()-.5)*r*1.7,cy+(Math.random()-.5)*r,r*(0.05+Math.random()*0.06),0,Math.PI*2);ctx.fill();}
+  [-0.31,0.31].forEach(ex=>{
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(cx+ex*r,cy-.14*r,r*.09,r*.09,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff0000';ctx.beginPath();ctx.ellipse(cx+ex*r,cy-.14*r,r*.065,r*.065,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(cx+ex*r,cy-.14*r,r*.04,r*.04,0,0,Math.PI*2);ctx.fill();
+    const eg=ctx.createRadialGradient(cx+ex*r,cy-.14*r,0,cx+ex*r,cy-.14*r,r*.22);eg.addColorStop(0,'rgba(255,0,0,0.55)');eg.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=eg;ctx.fillRect(0,0,W,H);
   });
+  ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(cx,cy+r*.2,r*.3,r*.18,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#e8e0c0';for(let i=-3;i<=3;i++){ctx.beginPath();ctx.moveTo(cx+i*r*.08,cy+r*.09);ctx.lineTo(cx+i*r*.08+r*.035,cy+r*.09);ctx.lineTo(cx+i*r*.08+r*.018,cy+r*.22);ctx.fill();ctx.beginPath();ctx.moveTo(cx+i*r*.08,cy+r*.35);ctx.lineTo(cx+i*r*.08+r*.035,cy+r*.35);ctx.lineTo(cx+i*r*.08+r*.018,cy+r*.24);ctx.fill();}
+  ctx.strokeStyle='rgba(50,15,0,0.85)';ctx.lineWidth=r*.042;for(let i=0;i<10;i++){const a=i/10*Math.PI*2;ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r*.72);ctx.quadraticCurveTo(cx+Math.cos(a)*r*1.5+Math.sin(a)*r*.25,cy+Math.sin(a)*r*1.25,cx+Math.cos(a)*r*1.9,cy+Math.sin(a)*r*1.6);ctx.stroke();}
+  ctx.fillStyle='#ffcc00';ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.font=`bold ${H*.09}px Creepster,cursive`;ctx.textAlign='center';ctx.strokeText('☠ TASTYCROUSTY ☠',cx,H*.13);ctx.fillText('☠ TASTYCROUSTY ☠',cx,H*.13);
+  const vg=ctx.createRadialGradient(cx,cy,r*.25,cx,cy,r*2.2);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.75)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
 }
 
-// ════════════════════════════════════════════════
-// 10. PUZZLES
-// ════════════════════════════════════════════════
-function openPuzzle(type) {
-  G.puzzleActive = true;
-  const overlay = document.getElementById('puzzle-overlay');
-  overlay.classList.remove('hidden');
-  document.getElementById('puzzle-feedback').textContent = '';
+let rndScr=false;
+function startRndScreamers(){if(rndScr)return;rndScr=true;setTimeout(()=>{if(G.chapter>=2&&!G.flags.mirror_scr){G.flags.mirror_scr=true;triggerScreamer('mirror',()=>showToast('Une ombre disparaît dans les ténèbres...'));}},12000+Math.random()*8000);}
 
-  switch(type) {
-    case 'code_puzzle':    buildCodePuzzle(); break;
-    case 'switch_puzzle':  buildSwitchPuzzle(); break;
-    case 'placement_puzzle': buildPlacementPuzzle(); break;
-  }
+// ════════════════════════════════════════════════════════════
+// DIALOGS
+// ════════════════════════════════════════════════════════════
+const DLG={
+  intro_outside:[{s:'NICO',p:'nico',t:"Byilhan... t'es sûr de vouloir entrer là-dedans ? Ce fast-food est fermé depuis 2019."},{s:'BYILHAN',p:'byilhan',t:"T'inquiète frère ! Y'a sûrement encore des TastyCrousty en stock !"},{s:'NICO',p:'nico',t:"Il a été retiré de la vente pour des 'raisons sanitaires non précisées'..."},{s:'BYILHAN',p:'byilhan',t:"Justement ! Les trucs interdits sont toujours les meilleurs. Viens !"},{s:'NICO',p:'nico',t:"Ta logique m'effraie. Okay. On entre. Et on sort VITE."}],
+  act1_dining_enter:[{s:'BYILHAN',p:'byilhan',t:"Woah. Dark. Mais l'ambiance c'est pas mal..."},{s:'NICO',p:'nico',t:"Des tables renversées. Des taches partout. Ça sent le renfermé."},{s:'BYILHAN',p:'byilhan',t:"Ça sent le vieux crouton ! Nostalgique !"},{s:'NICO',p:'nico',t:"Ça sent quelque chose qui n'aurait pas dû survivre aussi longtemps."}],
+  act1_stain_investigate:[{s:'BYILHAN',p:'byilhan',t:"C'est quoi cette tache ? Du ketchup ?"},{s:'NICO',p:'nico',t:"Ils ont arrêté le ketchup ici il y a 5 ans..."},{s:'BYILHAN',p:'byilhan',t:"De la sauce tomate alors ?"},{s:'NICO',p:'nico',t:"Byilhan. Ce n'est pas de la sauce."}],
+  act1_found_memo:[{s:'NICO',p:'nico',t:'"Ne pas distribuer le lot #666. Ne pas consommer." Qu\'est-ce que c\'est que ça ?'},{s:'BYILHAN',p:'byilhan',t:"Lot 666 ? Les gens sont tellement dramatiques."},{s:'NICO',p:'nico',t:"Je garde ça. Ça a l'air important."}],
+  act1_kitchen_enter:[{s:'BYILHAN',p:'byilhan',t:"La cuisine ! Y'a peut-être des TastyCrousty dans le frigo !"},{s:'NICO',p:'nico',t:"Le frigo tourne encore ? Mais l'élec est coupée normalement..."},{s:'BYILHAN',p:'byilhan',t:"Backup power sûrement. Vas-y, ouvre !"}],
+  act1_freezer_before:[{s:'BYILHAN',p:'byilhan',t:"Tu ouvres le congélo ou quoi ? Vas-y !"},{s:'NICO',p:'nico',t:"Il y a une lumière rouge qui clignote derrière. C'est... normal ?"},{s:'BYILHAN',p:'byilhan',t:"C'est la lampe de maintenance. Open it !"}],
+  act2_tension_start:[{s:'BYILHAN',p:'byilhan',t:"...Tu entends ça ?"},{s:'NICO',p:'nico',t:"Quoi ?"},{s:'BYILHAN',p:'byilhan',t:"Ce bruit. Comme si quelque chose... mâchait. Dans les murs."},{s:'NICO',p:'nico',t:"Ce sont les canalisations. Vieux bâtiment..."},{s:'BYILHAN',p:'byilhan',t:"Nico. Les canalisations ne respirent pas."}],
+  act2_shadow_seen:[{s:'BYILHAN',p:'byilhan',t:"Attends. ATTENDS. TU AS VU ÇA ?"},{s:'NICO',p:'nico',t:"Quoi ? Où ?"},{s:'BYILHAN',p:'byilhan',t:"Dans le couloir. Une ombre. Ronde. Avec... des dents."},{s:'NICO',p:'nico',t:"Byilhan, calme—"},{s:'BYILHAN',p:'byilhan',t:"JE SUIS CALME. JE SUIS TRÈS CALME."}],
+  act2_byilhan_panic:[{s:'BYILHAN',p:'byilhan',t:"On part. MAINTENANT. J'ai plus envie de TastyCrousty."},{s:'NICO',p:'nico',t:"Attends, j'ai trouvé des notes sur un 'Flamby'. Je dois comprendre."},{s:'BYILHAN',p:'byilhan',t:"NICO. Quelque chose me regarde depuis ces ombres."},{s:'BYILHAN',p:'byilhan',t:"JE SUIS PAS PARANO !!!"}],
+  act3_alone_monologue:[{s:'NICO',p:'nico',t:"Byilhan... je suis désolé."},{s:'NICO',p:'nico',t:"J'aurais dû écouter. Mais je dois comprendre. Pourquoi nous ?"},{s:'NICO',p:'nico',t:"Et ce Flamby... toutes les notes en parlent. 'Trouvez Flamby.'"},{s:'NICO',p:'nico',t:"Il faut que je descende plus loin."}],
+  act3_found_flamby_note:[{s:'NICO',p:'nico',t:'"Flamby. Ventre de Fer confirmé. Solution finale : MANGER." C\'est insensé.'},{s:'NICO',p:'nico',t:'"Seul celui qui possède le Ventre de Fer peut consommer la bête."'},{s:'NICO',p:'nico',t:"Il faut trouver les artefacts. Et Flamby."}],
+  act4_flamby_arrives:[{s:'???',p:'flamby',t:"Eh. T'as l'air d'avoir besoin d'aide, toi."},{s:'NICO',p:'nico',t:"QUI— qui es-tu ? Comment t'es entré ici ?"},{s:'FLAMBY',p:'flamby',t:"Par la porte du fond. Je suis Flamby."},{s:'NICO',p:'nico',t:"FLAMBY ?! C'est toi dont parlent toutes les notes ?!"},{s:'FLAMBY',p:'flamby',t:"Probablement. J'ai une certaine... réputation dans ce milieu."}],
+  act4_flamby_explains:[{s:'FLAMBY',p:'flamby',t:"Le TastyCrousty, c'est une erreur scientifique. Un snack qui a développé une conscience."},{s:'NICO',p:'nico',t:"Et... tu peux vraiment le vaincre en le mangeant ?"},{s:'FLAMBY',p:'flamby',t:"Parce que mon système digestif est une arme de destruction massive. Cliniquement prouvé."},{s:'FLAMBY',p:'flamby',t:"Frère, la normale s'est arrêtée quand un crouton a mangé ton ami. Suis-moi."}],
+  act4_prep_ritual:[{s:'FLAMBY',p:'flamby',t:"Place les 3 artefacts dans le cercle rituel du labo."},{s:'NICO',p:'nico',t:"Le fragment de cuve, la formule, le sceau. J'ai tout ça."},{s:'FLAMBY',p:'flamby',t:"Exactement. Toi tu fais le rituel. Moi je me prépare psychologiquement."},{s:'FLAMBY',p:'flamby',t:"J'ai faim. C'est mon état optimal."}],
+  final_confrontation:[{s:'FLAMBY',p:'flamby',t:"Recule, Nico. Fais confiance au ventre."},{s:'NICO',p:'nico',t:"Sois... prudent, Flamby."},{s:'FLAMBY',p:'flamby',t:"La prudence c'est pour ceux qui ont peur. Moi j'ai faim."}],
+};
+let dlgL=[],dlgI=0;
+function schedDlg(k,ms=0){setTimeout(()=>startDlg(k),ms);}
+function startDlg(k){if(!DLG[k])return;dlgL=DLG[k];dlgI=0;G.dialogActive=true;if(Ctrl.locked)document.exitPointerLock();showDlg();}
+function showDlg(){
+  if(dlgI>=dlgL.length){closeDlg();return;}
+  const l=dlgL[dlgI];
+  document.getElementById('dialog-box').classList.remove('hidden');
+  document.getElementById('dialog-speaker-name').textContent=l.s;
+  document.getElementById('dialog-text-area').textContent='';
+  const port=document.getElementById('dialog-portrait');
+  if(l.p){port.src=`assets/characters/${l.p}.png`;port.style.display='block';}else port.style.display='none';
+  let ci=0;clearInterval(G._typeTimer);
+  G._typeTimer=setInterval(()=>{document.getElementById('dialog-text-area').textContent=l.t.slice(0,++ci);if(ci>=l.t.length)clearInterval(G._typeTimer);},22);
+  Audio.play('click');
 }
-
-function closePuzzle() {
-  G.puzzleActive = false;
-  document.getElementById('puzzle-overlay').classList.add('hidden');
+function advanceDialog(){
+  const ta=document.getElementById('dialog-text-area');
+  if(ta.textContent.length<(dlgL[dlgI]?.t?.length??0)){clearInterval(G._typeTimer);ta.textContent=dlgL[dlgI].t;return;}
+  dlgI++;if(dlgI<dlgL.length)showDlg();else closeDlg();
 }
+function closeDlg(){G.dialogActive=false;document.getElementById('dialog-box').classList.add('hidden');}
 
-function showPuzzleFeedback(msg, color='#ffcc00') {
-  const fb = document.getElementById('puzzle-feedback');
-  fb.style.color = color;
-  fb.textContent = msg;
-}
+// ════════════════════════════════════════════════════════════
+// NOTES
+// ════════════════════════════════════════════════════════════
+const NOTES={
+  note_memo_w1:{title:'Mémo Interne — TastyCrousty Industries, 2018',body:`À : Tous les employés de l'usine N°4\nDe : Dr. Viktor Grunholt, Chef de Projet X-77\n\nConcerne : Lot de production #666\n\nNous avons rencontré des "anomalies comportementales" dans la cuve Nº6.\nLes échantillons du lot #666 présentent une résistance anormale à la péremption.\n\nNE PAS distribuer le lot #666.\nNE PAS consommer les produits de ce lot.\n\nSi vous entendez des bruits la nuit... IGNOREZ-LES.\n\n— Dr. V. Grunholt`},
+  note_journal_day1:{title:'Journal de Viktor Grunholt — Jour 1',body:`Aujourd'hui nous avons commencé l'expérience.\n\nObjectif : stabiliser la molécule gustative avec le composé X-77.\nLe snack le plus addictif du siècle.\n\nNous n'aurions pas dû.\n\nLe X-77 réagit avec les épices de manière... inattendue.\nLes cellules se divisent. Spontanément.\n\nAprès tout, un crouton ne peut pas être... vivant.\n\n— Grunholt`},
+  note_journal_day47:{title:'Journal de Viktor Grunholt — Jour 47',body:`Ça a poussé pendant la nuit.\n\nSeize boîtes du lot #666 vidées de l'intérieur.\nDes marques sur les murs. Des bruits.\nComme si quelque chose mâchait dans les murs.\n\nJ'ai contacté le sujet "F" — l'employé 447.\nIl mange tout. Il est le seul qui peut approcher sans réaction.\n\nSujet F. Flamby.\nPeut-être que c'est exactement ce qu'il nous faut.\n\n— Grunholt`},
+  note_warning_flamby:{title:'Dossier Confidentiel — Sujet F (Employé 447)',body:`NOM DE CODE : FLAMBY\nStatut : ACTIF — Protocole Sauveur\n\n• A consommé 47 croutons du Lot #666 sans effets.\n• Immunité totale aux composés X-77.\n• Capacité gastrique : HORS NORME.\n\nSEUL CELUI QUI POSSÈDE LE VENTRE DE FER\nPEUT ABSORBER LE TASTYCROUSTY TOTALEMENT.\n\nEN CAS DE CATASTROPHE :\nContactez Flamby. Laissez-le manger.\n\n— Archive R&D`},
+  note_scratched:{title:'Griffonnage — encre rouge (ou autre chose)',body:`ne partez pas ne partez pas ne partez pas\nil revient quand on éteint les lumières\nil vient quand on mange après minuit\nle snack vous choisit\nvous ne choisissez pas le snack\n\nFlamby sait.\nTrouvez Flamby.\nTROUVEZ FLAMBY avant qu'il ne vous trouve.\n\nça croque dans le noir\nça CROQUE DANS LE NOIR`},
+};
+function showNote(id){const n=NOTES[id];if(!n)return;Audio.play('paper_pickup');if(!G.notes.includes(id)){G.notes.push(id);document.getElementById('notes-count').textContent=`Notes : ${G.notes.length}`;}document.getElementById('note-title-area').textContent=n.title;document.getElementById('note-body').textContent=n.body;document.getElementById('note-reader').classList.remove('hidden');if(Ctrl.locked)document.exitPointerLock();}
+function closeNote(){document.getElementById('note-reader').classList.add('hidden');}
 
-// ── CODE PUZZLE ──────────────────────────────
-function buildCodePuzzle() {
-  document.getElementById('puzzle-title').textContent = 'Accès Verrouillé';
-  const content = document.getElementById('puzzle-content');
-  content.innerHTML = `
-    <p class="puzzle-hint">Un panneau de contrôle électronique. Il faut un code à 4 chiffres.</p>
-    <p class="puzzle-hint" style="color:#cc4400;margin-top:4px;">Indice : "L\'année où tout a commencé..."</p>
-    <div class="code-inputs">
-      <input class="code-digit" maxlength="1" id="cd0" type="text" inputmode="numeric">
-      <input class="code-digit" maxlength="1" id="cd1" type="text" inputmode="numeric">
-      <input class="code-digit" maxlength="1" id="cd2" type="text" inputmode="numeric">
-      <input class="code-digit" maxlength="1" id="cd3" type="text" inputmode="numeric">
-    </div>
-    <button class="puzzle-submit" id="code-submit">VALIDER LE CODE</button>
-  `;
-  // Auto-advance between digits
-  [0,1,2,3].forEach(i=>{
-    const inp = document.getElementById(`cd${i}`);
-    inp.addEventListener('input', ()=>{
-      if(inp.value.length === 1 && i < 3) document.getElementById(`cd${i+1}`).focus();
-    });
-    inp.addEventListener('keydown', e=>{
-      if(e.key==='Backspace' && inp.value==='' && i>0) document.getElementById(`cd${i-1}`).focus();
-    });
+// ════════════════════════════════════════════════════════════
+// INVENTORY
+// ════════════════════════════════════════════════════════════
+const IDEF={kitchen_key:{e:'🗝️',n:'Clé Cuisine'},crowbar:{e:'🔧',n:'Pied-de-biche'},fragment_cuve:{e:'🪨',n:'Fragment Cuve'},formule_x77:{e:'📜',n:'Formule X-77'},sceau_tc:{e:'🔖',n:'Sceau TC'}};
+function addItem(id,_e,_n){if(G.inventory.includes(id))return;G.inventory.push(id);Audio.play('item_pickup');renderInv();}
+function renderInv(){const sl=document.getElementById('inv-slots');sl.innerHTML='';G.inventory.forEach(id=>{const it=IDEF[id]||{e:'?',n:id};const d=document.createElement('div');d.className='inv-item'+(G.selectedItem===id?' selected':'');d.innerHTML=`${it.e}<span class="inv-item-name">${it.n}</span>`;d.addEventListener('click',()=>{G.selectedItem=(G.selectedItem===id)?null:id;renderInv();});sl.appendChild(d);});}
+
+// ════════════════════════════════════════════════════════════
+// PUZZLES
+// ════════════════════════════════════════════════════════════
+function openPuzzle(type){G.puzzleActive=true;if(Ctrl.locked)document.exitPointerLock();document.getElementById('puzzle-overlay').classList.remove('hidden');document.getElementById('puzzle-feedback').textContent='';if(type==='code_puzzle')buildCodePzl();else if(type==='placement_puzzle')buildPlacePzl();}
+function closePuzzle(){G.puzzleActive=false;document.getElementById('puzzle-overlay').classList.add('hidden');}
+function spf(msg,col='#ffcc00'){const fb=document.getElementById('puzzle-feedback');fb.style.color=col;fb.textContent=msg;}
+
+function buildCodePzl(){
+  document.getElementById('puzzle-title').textContent='Accès Verrouillé';
+  document.getElementById('puzzle-content').innerHTML=`<p class="puzzle-hint">Panneau de contrôle. Code à 4 chiffres requis.</p><p class="puzzle-hint" style="color:#cc4400;margin-top:6px;">Indice : "L'année où tout a commencé..."</p><div class="code-inputs">${[0,1,2,3].map(i=>`<input class="code-digit" maxlength="1" id="cd${i}" type="text" inputmode="numeric">`).join('')}</div><button class="puzzle-submit" id="code-submit">VALIDER</button>`;
+  [0,1,2,3].forEach(i=>{const inp=document.getElementById(`cd${i}`);inp.addEventListener('input',()=>{if(inp.value.length===1&&i<3)document.getElementById(`cd${i+1}`).focus();});inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&inp.value===''&&i>0)document.getElementById(`cd${i-1}`).focus();});});
+  document.getElementById('code-submit').addEventListener('click',()=>{
+    const code=[0,1,2,3].map(i=>document.getElementById(`cd${i}`).value).join('');
+    if(code==='1997'){Audio.play('puzzle_success');spf('✓ Code accepté !','#00cc66');G.flags.lab_unlocked=true;setTimeout(()=>{closePuzzle();showToast("La porte du laboratoire s'ouvre !");loadRoom(G.scene);},1200);}
+    else{Audio.play('puzzle_fail');spf('✗ Code incorrect.','#ff3333');[0,1,2,3].forEach(i=>document.getElementById(`cd${i}`).value='');document.getElementById('cd0').focus();}
   });
-  document.getElementById('code-submit').addEventListener('click', ()=>{
-    const code = [0,1,2,3].map(i=>document.getElementById(`cd${i}`).value).join('');
-    if(code === '1997') {
-      Audio.play('puzzle_success');
-      showPuzzleFeedback('✓ Code accepté !', '#00cc66');
-      G.flags.lab_unlocked = true;
-      G.flags.code_puzzle_done = true;
-      setTimeout(()=>{ closePuzzle(); showToast('La porte du laboratoire s\'ouvre !'); buildHotspots(SCENES_DEF[G.scene]); }, 1200);
-    } else {
-      Audio.play('puzzle_fail');
-      showPuzzleFeedback('✗ Code incorrect.', '#ff3333');
-      [0,1,2,3].forEach(i=>{ document.getElementById(`cd${i}`).value=''; });
-      document.getElementById('cd0').focus();
-      triggerFlicker();
-    }
-  });
-  setTimeout(()=>document.getElementById('cd0').focus(), 100);
+  setTimeout(()=>document.getElementById('cd0').focus(),100);
 }
-
-// ── SWITCH PUZZLE ─────────────────────────────
-function buildSwitchPuzzle() {
-  document.getElementById('puzzle-title').textContent = 'Tableau Électrique';
-  const content = document.getElementById('puzzle-content');
-  const correctOrder = [0, 2, 1]; // Switch indices to activate in order
-  let sequence = [];
-  const switchStates = [false, false, false];
-
-  content.innerHTML = `
-    <p class="puzzle-hint">Activez les interrupteurs dans le bon ordre.<br>Indice : "Gauche, Droite, Centre"</p>
-    <div class="switches-row">
-      ${['G','D','C'].map((l,i)=>`
-        <div class="switch-btn" id="sw${i}" data-idx="${i}">
-          <div class="sw-indicator"></div>
-          <div class="sw-label">${l}</div>
-        </div>
-      `).join('')}
-    </div>
-    <button class="puzzle-submit" id="switch-submit">VALIDER</button>
-  `;
-
-  document.querySelectorAll('.switch-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const idx = parseInt(btn.dataset.idx);
-      switchStates[idx] = !switchStates[idx];
-      btn.classList.toggle('on', switchStates[idx]);
-      Audio.play('qte_press');
-      if(switchStates[idx]) sequence.push(idx);
-      else sequence = sequence.filter(x=>x!==idx);
-    });
-  });
-
-  document.getElementById('switch-submit').addEventListener('click', ()=>{
-    // Check if switches 0 and 2 are on, 1 is off (G, D, not C)
-    if(switchStates[0] && !switchStates[1] && switchStates[2]) {
-      Audio.play('puzzle_success');
-      showPuzzleFeedback('✓ Circuit activé !', '#00cc66');
-      G.flags.switch_puzzle_done = true;
-      setTimeout(()=>{ closePuzzle(); showToast('Le générateur s\'active !'); }, 1200);
-    } else {
-      Audio.play('puzzle_fail');
-      showPuzzleFeedback('✗ Mauvaise combinaison. Court-circuit !', '#ff3333');
-      triggerFlicker();
-    }
-  });
-}
-
-// ── PLACEMENT PUZZLE ─────────────────────────
-function buildPlacementPuzzle() {
-  document.getElementById('puzzle-title').textContent = 'Cercle Rituel';
-  const content = document.getElementById('puzzle-content');
-
-  // Correct positions: fragment=top, formule=bottom-left, sceau=bottom-right
-  const slots = [
-    {id:'slot_top',   label:'Haut',   correct:'fragment_cuve', placed:null},
-    {id:'slot_left',  label:'G-Bas',  correct:'formule_x77',   placed:null},
-    {id:'slot_right', label:'D-Bas',  correct:'sceau_tc',       placed:null},
-  ];
-  const items = [
-    {id:'fragment_cuve', emoji:'🪨', name:'Fragment Cuve'},
-    {id:'formule_x77',   emoji:'📜', name:'Formule X-77'},
-    {id:'sceau_tc',      emoji:'🔖', name:'Sceau TC'},
-  ];
-  let selectedItem = null;
-
-  function render() {
-    content.innerHTML = `
-      <p class="puzzle-hint">Placez chaque artefact dans la bonne position du cercle.<br>Sélectionnez un objet puis cliquez sur une position.</p>
-      <div class="placement-grid" style="grid-template-columns:80px 80px 80px; grid-template-rows:80px 80px;">
-        <div></div>
-        <div class="place-slot ${slots[0].placed?'filled':''} ${slots[0].feedback||''}" id="slot_top">
-          ${slots[0].placed ? items.find(i=>i.id===slots[0].placed)?.emoji||'' : '?'}
-          <span class="place-slot-label">${slots[0].label}</span>
-        </div>
-        <div></div>
-        <div class="place-slot ${slots[1].placed?'filled':''} ${slots[1].feedback||''}" id="slot_left">
-          ${slots[1].placed ? items.find(i=>i.id===slots[1].placed)?.emoji||'' : '?'}
-          <span class="place-slot-label">${slots[1].label}</span>
-        </div>
-        <div></div>
-        <div class="place-slot ${slots[2].placed?'filled':''} ${slots[2].feedback||''}" id="slot_right">
-          ${slots[2].placed ? items.find(i=>i.id===slots[2].placed)?.emoji||'' : '?'}
-          <span class="place-slot-label">${slots[2].label}</span>
-        </div>
-      </div>
-      <div class="placement-items">
-        ${items.map(it=>`<div class="place-item ${selectedItem===it.id?'selected':''} ${slots.some(s=>s.placed===it.id)?'placed':''}" data-item="${it.id}" title="${it.name}">${it.emoji}</div>`).join('')}
-      </div>
-      <button class="puzzle-submit" id="place-submit">ACTIVER LE RITUEL</button>
-    `;
-
-    document.querySelectorAll('.place-item').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        selectedItem = el.dataset.item;
-        render();
-      });
-    });
-    document.querySelectorAll('.place-slot').forEach((el,idx)=>{
-      el.addEventListener('click', ()=>{
-        if(!selectedItem) return;
-        slots[idx].placed = selectedItem;
-        selectedItem = null;
-        Audio.play('item_pickup');
-        render();
-      });
-    });
-    document.getElementById('place-submit')?.addEventListener('click', ()=>{
-      const allCorrect = slots.every(s => s.placed === s.correct);
-      slots.forEach(s=> s.feedback = s.placed===s.correct ? 'correct' : s.placed ? 'wrong' : '');
-      render();
-      if(allCorrect) {
-        Audio.play('puzzle_success');
-        showPuzzleFeedback('✓ Le cercle s\'illumine ! Le rituel peut commencer !', '#00cc66');
-        G.flags.ritual_complete = true;
-        setTimeout(()=>{
-          closePuzzle();
-          showToast('Le rituel est accompli ! Rendez-vous dans la Chambre Rituelle.');
-          buildHotspots(SCENES_DEF[G.scene]);
-        }, 1500);
-      } else {
-        Audio.play('puzzle_fail');
-        showPuzzleFeedback('✗ Mauvais placement. Les artefacts résistent.', '#ff3333');
-        triggerFlicker();
-        setTimeout(()=>{slots.forEach(s=>s.feedback=''); render();}, 1200);
-      }
+function buildPlacePzl(){
+  document.getElementById('puzzle-title').textContent='Cercle Rituel';
+  const slots=[{id:'s0',lbl:'Nord',correct:'fragment_cuve',placed:null},{id:'s1',lbl:'Sud-O',correct:'formule_x77',placed:null},{id:'s2',lbl:'Sud-E',correct:'sceau_tc',placed:null}];
+  const items=[{id:'fragment_cuve',e:'🪨'},{id:'formule_x77',e:'📜'},{id:'sceau_tc',e:'🔖'}];
+  let sel=null;
+  function render(){
+    document.getElementById('puzzle-content').innerHTML=`<p class="puzzle-hint">Sélectionnez un artefact puis cliquez sur une position.</p><div style="display:grid;grid-template-columns:70px 70px 70px;grid-template-rows:70px 70px;gap:10px;justify-content:center;margin:20px 0;"><div></div><div class="place-slot${slots[0].placed?' filled':''}" id="ps0">${slots[0].placed?items.find(i=>i.id===slots[0].placed)?.e||'?':'?'}<span class="place-slot-label">${slots[0].lbl}</span></div><div></div><div class="place-slot${slots[1].placed?' filled':''}" id="ps1">${slots[1].placed?items.find(i=>i.id===slots[1].placed)?.e||'?':'?'}<span class="place-slot-label">${slots[1].lbl}</span></div><div></div><div class="place-slot${slots[2].placed?' filled':''}" id="ps2">${slots[2].placed?items.find(i=>i.id===slots[2].placed)?.e||'?':'?'}<span class="place-slot-label">${slots[2].lbl}</span></div></div><div style="display:flex;gap:10px;justify-content:center;margin-bottom:14px;">${items.map(it=>`<div class="place-item${sel===it.id?' selected':''}${slots.some(s=>s.placed===it.id)?' placed':''}" data-id="${it.id}">${it.e}</div>`).join('')}</div><button class="puzzle-submit" id="place-ok">ACTIVER LE RITUEL</button>`;
+    document.querySelectorAll('.place-item').forEach(el=>el.addEventListener('click',()=>{sel=el.dataset.id;render();}));
+    [0,1,2].forEach(i=>document.getElementById(`ps${i}`).addEventListener('click',()=>{if(!sel)return;slots[i].placed=sel;sel=null;Audio.play('item_pickup');render();}));
+    document.getElementById('place-ok').addEventListener('click',()=>{
+      if(slots.every(s=>s.placed===s.correct)){Audio.play('puzzle_success');spf('✓ Le cercle s\'illumine !','#00cc66');G.flags.ritual_complete=true;setTimeout(()=>{closePuzzle();showToast('Rituel accompli ! Rendez-vous dans la Chambre Rituelle.');loadRoom(G.scene);},1400);}
+      else{Audio.play('puzzle_fail');spf('✗ Mauvais placement.','#ff3333');}
     });
   }
   render();
 }
 
-// ════════════════════════════════════════════════
-// 11. SCREAMERS (JUMPSCARES)
-// ════════════════════════════════════════════════
-function triggerScreamer(type, callback) {
-  Audio.play('screamer');
-  const overlay = document.getElementById('screamer-overlay');
-  overlay.classList.remove('hidden');
-  drawScreamer(type);
-
-  // Camera shake effect
-  const gameScreen = document.getElementById('game-screen');
-  gameScreen.style.transform='translateX(8px)';
-  setTimeout(()=>gameScreen.style.transform='translateX(-8px)',50);
-  setTimeout(()=>gameScreen.style.transform='translateX(4px)',100);
-  setTimeout(()=>gameScreen.style.transform='',150);
-
-  setTimeout(()=>{
-    overlay.classList.add('hidden');
-    G.screamerCtx.clearRect(0,0,G.screamerCanvas.width,G.screamerCanvas.height);
-    if(callback) callback();
-  }, 1600);
-}
-
-function drawScreamer(type) {
-  const ctx = G.screamerCtx;
-  const w = G.screamerCanvas.width, h = G.screamerCanvas.height;
-  ctx.clearRect(0,0,w,h);
-
-  // Background flash
-  ctx.fillStyle = '#ff0000';
-  ctx.fillRect(0,0,w,h);
-
-  // Draw TastyCrousty face
-  const cx=w/2, cy=h/2, r=Math.min(w,h)*0.38;
-
-  // Body
-  ctx.fillStyle = '#8b4500';
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, r, r*0.7, 0, 0, Math.PI*2);
-  ctx.fill();
-
-  // Texture bumps
-  for(let i=0;i<12;i++){
-    const bx = cx+(Math.random()-.5)*r*1.6, by=cy+(Math.random()-.5)*r;
-    ctx.fillStyle = '#6b3500';
-    ctx.beginPath(); ctx.arc(bx, by, r*0.06+Math.random()*r*0.05, 0, Math.PI*2); ctx.fill();
-  }
-
-  // Eyes (glowing red)
-  [[-0.3,-.15],[0.3,-.15]].forEach(([ex,ey])=>{
-    // White sclera
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.ellipse(cx+ex*r, cy+ey*r, r*0.1, r*0.1, 0, 0, Math.PI*2); ctx.fill();
-    // Iris
-    ctx.fillStyle = '#ff0000';
-    ctx.beginPath(); ctx.ellipse(cx+ex*r, cy+ey*r, r*0.07, r*0.07, 0, 0, Math.PI*2); ctx.fill();
-    // Pupil
-    ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.ellipse(cx+ex*r, cy+ey*r, r*0.04, r*0.04, 0, 0, Math.PI*2); ctx.fill();
-    // Glow
-    const eg=ctx.createRadialGradient(cx+ex*r,cy+ey*r,0,cx+ex*r,cy+ey*r,r*0.2);
-    eg.addColorStop(0,'rgba(255,0,0,0.6)'); eg.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=eg; ctx.fillRect(0,0,w,h);
-  });
-
-  // Mouth (open, screaming)
-  ctx.fillStyle = '#000000';
-  ctx.beginPath();
-  ctx.ellipse(cx, cy+r*0.22, r*0.32, r*0.2, 0, 0, Math.PI*2);
-  ctx.fill();
-
-  // Teeth
-  ctx.fillStyle = '#e8e0c0';
-  for(let i=-3;i<=3;i++){
-    ctx.beginPath();
-    ctx.moveTo(cx+i*r*0.08, cy+r*0.08);
-    ctx.lineTo(cx+i*r*0.08+r*0.04, cy+r*0.08);
-    ctx.lineTo(cx+i*r*0.08+r*0.02, cy+r*0.22);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(cx+i*r*0.08, cy+r*0.38);
-    ctx.lineTo(cx+i*r*0.08+r*0.04, cy+r*0.38);
-    ctx.lineTo(cx+i*r*0.08+r*0.02, cy+r*0.25);
-    ctx.fill();
-  }
-
-  // Tendrils
-  ctx.strokeStyle='rgba(60,20,0,0.8)'; ctx.lineWidth=r*0.04;
-  for(let i=0;i<8;i++){
-    const angle = i/8*Math.PI*2;
-    ctx.beginPath();
-    ctx.moveTo(cx+Math.cos(angle)*r, cy+Math.sin(angle)*r*0.7);
-    ctx.quadraticCurveTo(
-      cx+Math.cos(angle)*r*1.5+Math.sin(angle)*r*0.2,
-      cy+Math.sin(angle)*r*1.2+Math.cos(angle)*r*0.2,
-      cx+Math.cos(angle)*r*1.8, cy+Math.sin(angle)*r*1.5
-    );
-    ctx.stroke();
-  }
-
-  // TASTYCROUSTY text
-  ctx.fillStyle = '#ffcc00';
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 4;
-  ctx.font = `bold ${h*0.08}px 'Creepster', cursive`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.strokeText('☠ TASTYCROUSTY ☠', cx, h*0.15);
-  ctx.fillText('☠ TASTYCROUSTY ☠', cx, h*0.15);
-
-  // Dark vignette
-  const vg = ctx.createRadialGradient(cx,cy,r*0.3,cx,cy,r*2);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,'rgba(0,0,0,0.7)');
-  ctx.fillStyle=vg; ctx.fillRect(0,0,w,h);
-}
-
-let screamerScheduled = false;
-function startScreamers() {
-  if(screamerScheduled) return;
-  screamerScheduled = true;
-  // Schedule random screamers based on chapter
-  setTimeout(()=>{
-    if(G.chapter >= 2 && !G.flags.mirror_scream) {
-      G.flags.mirror_scream = true;
-      triggerScreamer('mirror', ()=>{
-        showToast('Vous voyez quelque chose dans l\'obscurité...');
-      });
-    }
-  }, 15000 + Math.random()*10000);
-}
-
-// ════════════════════════════════════════════════
-// 12. ÉPILOGUE & CRÉDITS
-// ════════════════════════════════════════════════
-function startEpilogue() {
-  Audio.playAmbient('safe');
-  Audio.stopRandomCreaks();
-  document.getElementById('game-screen').classList.remove('tense-mode');
-  showScreen('epilogue-screen');
-
-  scheduleDialog('after_finale', 500);
-
-  const epilogueLines = [
-    "Le TastyCrousty Maléfique avait été vaincu.\n\nPar l'estomac d'un homme extraordinaire.",
-    "Nico rentra chez lui.\n\nIl ne remangea jamais de TastyCrousty.\n\nPar principe.",
-    "Byilhan fut pleuré pendant exactement 3 semaines.\n\nEnsuite Nico commanda une pizza.\n\nC'était ce que Byilhan aurait voulu.",
-    "Flamby, lui, rentra chez lui.\n\nIl avait encore faim.\n\nIl commanda 4 pizzas.",
-    "L'usine TastyCrousty fut démolie.\n\nSur l'emplacement fut construit un parking.\n\nPersonne ne se demanda jamais pourquoi les voitures garées là-bas avaient parfois les pneus mordus.",
-    "FIN"
-  ];
-
-  let epIdx = 0;
-  function showEpLine() {
-    document.getElementById('epilogue-text').innerHTML = epilogueLines[epIdx].replace(/\n/g,'<br>');
-    document.getElementById('epilogue-advance').classList.remove('hidden');
-  }
-  showEpLine();
-
-  document.getElementById('epilogue-advance').addEventListener('click', ()=>{
-    epIdx++;
-    if(epIdx >= epilogueLines.length) {
-      startCredits();
-    } else {
-      document.getElementById('epilogue-advance').classList.add('hidden');
-      document.getElementById('epilogue-text').style.opacity='0';
-      setTimeout(()=>{
-        showEpLine();
-        document.getElementById('epilogue-text').style.transition='opacity 1s ease';
-        document.getElementById('epilogue-text').style.opacity='1';
-      }, 500);
-    }
-  });
-}
-
-function startCredits() {
-  Audio.play('victory');
-  showScreen('credits-screen');
-
-  const creditsHtml = `
-    <div class="credits-title-main">NICO ET LE TASTYCROUSTY MALÉFIQUE</div>
-    <div class="credits-separator">☠ ☠ ☠</div>
-    <div class="credits-section">Développé par</div>
-    <div class="credits-dev">STIROXBEREAL</div>
-    <div class="credits-separator">· · ·</div>
-    <div class="credits-section">Scénario & Direction</div>
-    <div class="credits-name">STIROXBEREAL</div>
-    <div class="credits-separator">· · ·</div>
-    <div class="credits-section">Personnages</div>
-    <div class="credits-name">NICO — Le Protagoniste</div>
-    <div class="credits-name">BYILHAN — L'Ami Courageux</div>
-    <div class="credits-name">FLAMBY — Le Sauveur au Ventre de Fer</div>
-    <div class="credits-name">LE TASTYCROUSTY — L'Antagoniste Maudit</div>
-    <div class="credits-separator">· · ·</div>
-    <div class="credits-section">Technologies</div>
-    <div class="credits-name">HTML5 / CSS3 / JavaScript</div>
-    <div class="credits-name">Three.js (Cinématiques 3D)</div>
-    <div class="credits-name">Web Audio API (Sons procéduraux)</div>
-    <div class="credits-separator">· · ·</div>
-    <div class="credits-section">Lore</div>
-    <div class="credits-name">L'origine du TastyCrousty reste un mystère.<br>Le lot #666 n'aurait jamais dû être produit.</div>
-    <div class="credits-separator">· · ·</div>
-    <div class="credits-section">Message Spécial</div>
-    <div class="credits-name" style="color:#d4a017;font-size:1.1rem;">
-      Ne consommez pas de TastyCrousty après minuit.<br>
-      Nous ne sommes pas responsables des conséquences.
-    </div>
-    <div class="credits-separator">☠ ☠ ☠</div>
-    <div class="credits-dev" style="font-size:2.5rem;margin-top:40px;">MERCI D'AVOIR JOUÉ</div>
-    <div class="credits-section" style="margin-top:20px;">© 2024 STIROXBEREAL — Tous droits réservés</div>
-  `;
-
-  document.getElementById('credits-scroll').innerHTML = creditsHtml;
-}
-
-// ════════════════════════════════════════════════
-// 13. UTILITAIRES UI
-// ════════════════════════════════════════════════
-let toastTimeout = null;
-function showToast(msg) {
-  let toast = document.getElementById('toast-msg');
-  if(!toast) {
-    toast = document.createElement('div');
-    toast.id = 'toast-msg';
-    toast.style.cssText = `
-      position:fixed; top:60px; left:50%; transform:translateX(-50%);
-      background:rgba(10,5,8,.9); color:#c8b8a8;
-      border:1px solid rgba(180,20,30,.4); border-top:2px solid #cc1122;
-      font-family:'Oswald',sans-serif; font-size:.8rem; letter-spacing:2px;
-      padding:10px 20px; max-width:60vw; text-align:center;
-      z-index:80; box-shadow:0 4px 20px rgba(0,0,0,.6);
-      transition:opacity .3s ease;
-    `;
-    document.getElementById('game-screen').appendChild(toast);
-  }
-  toast.textContent = msg;
-  toast.style.opacity='1';
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(()=>toast.style.opacity='0', 3000);
-}
-
-function showFeedback(msg) { showToast(msg); }
-
-function triggerFlicker() {
-  const fl = document.getElementById('flicker-overlay');
-  fl.classList.add('flicker-on');
-  setTimeout(()=>fl.classList.remove('flicker-on'), 150);
-  setTimeout(()=>fl.classList.add('flicker-on'), 200);
-  setTimeout(()=>fl.classList.remove('flicker-on'), 350);
-}
-
-function togglePause() {
-  G.paused = !G.paused;
-  document.getElementById('pause-menu').classList.toggle('hidden', !G.paused);
-}
-function hidePause() {
-  G.paused = false;
-  document.getElementById('pause-menu').classList.add('hidden');
-}
-
-function onKeyDown(e) {
-  if(e.key==='Escape') {
-    if(G.puzzleActive) closePuzzle();
-    else if(document.getElementById('note-reader').classList.contains('hidden')===false) closeNote();
-    else if(G.dialogActive) closeDialog();
-    else togglePause();
-  }
-  if(e.key===' ' || e.key==='Enter') {
-    if(G.dialogActive) advanceDialog();
-  }
-}
-
-// ════════════════════════════════════════════════
-// 14. CHAPTER 2 TRIGGER — special Byilhan death
-// ════════════════════════════════════════════════
-// This gets called when chapter 2 is reached and Byilhan death needs to trigger
-function checkByilhanDeath() {
-  if(G.chapter === 2 && G.flags.byilhan_death_ready && !G.flags.byilhan_dead) {
-    G.flags.byilhan_dead = true;
-    setTimeout(()=>{
-      showScreen('cinematic-screen');
-      Cinematic.play('byilhan_death', ()=>{
-        advanceChapter(3);
-        gotoScene('office');
-        setTimeout(()=>scheduleDialog('act3_alone_monologue', 1000), 500);
-      });
-    }, 2000);
-  }
-}
-
-// Override advanceChapter to handle byilhan death cinematic
-const _origAdvance = advanceChapter;
-function advanceChapter(n) {
-  if(n === 3 && !G.flags.byilhan_dead && G.chapter === 2) {
-    // Trigger byilhan death cinematic first
-    G.flags.byilhan_dead = true;
+// ════════════════════════════════════════════════════════════
+// CHAPTERS
+// ════════════════════════════════════════════════════════════
+function advChapter(n){
+  if(n<=G.chapter)return;
+  if(n===3&&!G.flags.byilhan_dead){
+    G.flags.byilhan_dead=true;gameRunning=false;if(loopId)cancelAnimationFrame(loopId);
     showScreen('cinematic-screen');
-    Cinematic.play('byilhan_death', ()=>{
-      G.chapter = 3;
-      const card = document.getElementById('chapter-card');
-      document.getElementById('chapter-number').textContent = 'ACTE III';
-      document.getElementById('chapter-name').textContent = 'Seul dans l\'Obscurité';
-      card.classList.remove('hidden');
-      setTimeout(()=>card.classList.add('hidden'), 3500);
-      showScreen('game-screen');
-      Audio.playAmbient('horror');
-      Audio.startRandomCreaks('high');
+    Cinematic.play('byilhan_death',()=>{
+      G.chapter=3;showScreen('game-screen');gameRunning=true;startLoop();
       document.getElementById('game-screen').classList.add('tense-mode');
-      gotoScene('office');
-      setTimeout(()=>scheduleDialog('act3_alone_monologue', 800), 1500);
+      showCard('ACTE III',"Seul dans l'Obscurité");loadRoom('office');schedDlg('act3_alone_monologue',2000);
     });
     return;
   }
-  if(n <= G.chapter) return;
-  G.chapter = n;
+  G.chapter=n;
+  const t={1:{n:'ACTE I',t:'Exploration'},2:{n:'ACTE II',t:'La Montée des Ténèbres'},4:{n:'ACTE IV',t:'Le Sauveur'}};
+  if(t[n])showCard(t[n].n,t[n].t);
+  if(n===2){Audio.play('stinger');startRndScreamers();}
+  if(n>=3)document.getElementById('game-screen').classList.add('tense-mode');
+}
+function showCard(num,name){const c=document.getElementById('chapter-card');document.getElementById('chapter-number').textContent=num;document.getElementById('chapter-name').textContent=name;c.classList.remove('hidden');setTimeout(()=>c.classList.add('hidden'),3800);}
 
-  const chapterTitles = {
-    1: { num:'ACTE I',    name:'Exploration' },
-    2: { num:'ACTE II',   name:'La Montée des Ténèbres' },
-    4: { num:'ACTE IV',   name:'Le Sauveur' },
-    5: { num:'ACTE FINAL',name:'La Confrontation' },
-  };
-  const ct = chapterTitles[n];
-  if(ct) {
-    const card = document.getElementById('chapter-card');
-    document.getElementById('chapter-number').textContent = ct.num;
-    document.getElementById('chapter-name').textContent = ct.name;
-    card.classList.remove('hidden');
-    setTimeout(()=>card.classList.add('hidden'), 3500);
-  }
-
-  if(n===2) { Audio.play('stinger'); startScreamers(); }
-  if(n>=3)  { document.getElementById('game-screen').classList.add('tense-mode'); }
-
-  const sceneMap = {4:'ritual_chamber', 5:'ritual_chamber'};
-  if(sceneMap[n]) {
-    setTimeout(()=>gotoScene(sceneMap[n]), ct ? 1000 : 0);
-  }
+// ════════════════════════════════════════════════════════════
+// EPILOGUE & CREDITS
+// ════════════════════════════════════════════════════════════
+function startEpilogue(){
+  Audio.playAmbient('safe');Audio.stopRandomCreaks();
+  document.getElementById('game-screen').classList.remove('tense-mode');
+  showScreen('epilogue-screen');
+  const lines=["Le TastyCrousty Maléfique avait été vaincu.\n\nPar l'estomac d'un homme extraordinaire.","Nico rentra chez lui.\n\nIl ne remangea jamais de TastyCrousty.\n\nPar principe.","Byilhan fut pleuré 3 semaines.\n\nEnsuite Nico commanda une pizza.\n\nC'était ce que Byilhan aurait voulu.","Flamby rentra chez lui.\n\nIl avait encore faim.\n\nIl commanda 4 pizzas.","L'usine fut démolie. Sur l'emplacement fut construit un parking.\n\nPersonne ne se demanda jamais pourquoi les pneus des voitures étaient parfois mordus.","— FIN —"];
+  let ei=0;const et=document.getElementById('epilogue-text'),eb=document.getElementById('epilogue-advance');
+  function showEp(){et.style.opacity='0';setTimeout(()=>{et.innerHTML=lines[ei].replace(/\n/g,'<br>');et.style.transition='opacity 1s';et.style.opacity='1';eb.classList.remove('hidden');},400);}
+  showEp();
+  const nb=eb.cloneNode(true);eb.parentNode.replaceChild(nb,eb);
+  document.getElementById('epilogue-advance').addEventListener('click',()=>{ei++;if(ei>=lines.length)startCredits();else{document.getElementById('epilogue-advance').classList.add('hidden');showEp();}});
+}
+function startCredits(){
+  Audio.play('victory');showScreen('credits-screen');
+  document.getElementById('credits-scroll').innerHTML=`<div class="credits-title-main">NICO ET LE TASTYCROUSTY MALÉFIQUE</div><div class="credits-separator">☠ ☠ ☠</div><div class="credits-section">Développé par</div><div class="credits-dev">STIROXBEREAL</div><div class="credits-separator">· · ·</div><div class="credits-section">Personnages</div><div class="credits-name">NICO — Le Protagoniste</div><div class="credits-name">BYILHAN — L'Ami Courageux (RIP)</div><div class="credits-name">FLAMBY — Le Sauveur au Ventre de Fer</div><div class="credits-separator">☠ ☠ ☠</div><div class="credits-section">Technologies</div><div class="credits-name">Three.js r128 · Web Audio API · HTML5/JS</div><div class="credits-separator">☠ ☠ ☠</div><div class="credits-dev" style="font-size:2.5rem;margin-top:40px">MERCI D'AVOIR JOUÉ</div><div class="credits-section" style="margin-top:14px">© 2024 STIROXBEREAL</div>`;
+  const cb=document.getElementById('credits-back');const nb=cb.cloneNode(true);cb.parentNode.replaceChild(nb,cb);
+  document.getElementById('credits-back').addEventListener('click',()=>{showScreen('main-menu');showMenu();});
 }
 
-// ════════════════════════════════════════════════
-// 15. FINAL SEQUENCE
-// ════════════════════════════════════════════════
-// Override summonFlamby to use the correct cinematic
-summonFlamby = function() {
-  if(!G.flags.ritual_complete) { showToast('Le rituel n\'est pas accompli.'); return; }
-  G.flags.flamby_summoned = true;
+// ════════════════════════════════════════════════════════════
+// UI
+// ════════════════════════════════════════════════════════════
+let toastTO=null;
+function showToast(msg){let t=document.getElementById('toast-msg');if(!t){t=document.createElement('div');t.id='toast-msg';t.style.cssText='position:fixed;top:56px;left:50%;transform:translateX(-50%);background:rgba(8,4,6,.93);color:#c8b8a8;border:1px solid rgba(180,20,30,.5);border-top:2px solid #cc1122;font-family:Oswald,sans-serif;font-size:.8rem;letter-spacing:2px;padding:10px 22px;max-width:60vw;text-align:center;z-index:80;pointer-events:none;transition:opacity .3s ease;';document.getElementById('game-screen').appendChild(t);}t.textContent=msg;t.style.opacity='1';clearTimeout(toastTO);toastTO=setTimeout(()=>t.style.opacity='0',3200);}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
+function togglePause(){G.paused=!G.paused;document.getElementById('pause-menu').classList.toggle('hidden',!G.paused);if(G.paused&&Ctrl.locked)document.exitPointerLock();}
 
-  advanceChapter(4);
-  scheduleDialog('act4_flamby_arrives', 500);
-  scheduleDialog('act4_flamby_explains', 9000);
-  scheduleDialog('act4_prep_ritual', 18000);
+// ════════════════════════════════════════════════════════════
+// SAVE/LOAD
+// ════════════════════════════════════════════════════════════
+function saveGame(){localStorage.setItem('tc_save',JSON.stringify({chapter:G.chapter,scene:G.scene,inventory:G.inventory,notes:G.notes,flags:G.flags}));document.getElementById('btn-continue').disabled=false;}
+function loadSave(){const d=localStorage.getItem('tc_save');if(!d)return;try{const s=JSON.parse(d);Object.assign(G,{chapter:s.chapter,scene:s.scene,inventory:s.inventory,notes:s.notes,flags:s.flags,selectedItem:null});showScreen('game-screen');gameRunning=true;renderInv();document.getElementById('notes-count').textContent=`Notes : ${G.notes.length}`;loadRoom(G.scene||'fastfood_outside');startLoop();Ctrl.init();}catch(e){alert('Sauvegarde corrompue.');}}
 
-  // Trigger final sequence after dialogs
-  setTimeout(()=>{
-    scheduleDialog('final_confrontation', 500);
-    setTimeout(()=>{
-      showScreen('cinematic-screen');
-      Cinematic.play('finale', ()=>{
-        startEpilogue();
-      });
-    }, 5000);
-  }, 27000);
-};
+// ════════════════════════════════════════════════════════════
+// MENU
+// ════════════════════════════════════════════════════════════
+function showMenu(){showScreen('main-menu');gameRunning=false;Audio.init();Audio.playAmbient('factory');Audio.startRandomCreaks('low');animMenuBg();}
+let menuAId=null;
+function animMenuBg(){if(menuAId)cancelAnimationFrame(menuAId);const cv=document.getElementById('menu-bg-canvas');const ctx=cv.getContext('2d');let t=0;(function fr(){menuAId=requestAnimationFrame(fr);t+=0.004;ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(0,0,cv.width,cv.height);for(let i=0;i<3;i++){const x=((Math.sin(t*.3+i*2.1)*.5+.5)+t*.04)%1*cv.width,y=(Math.cos(t*.2+i*1.7)*.5+.5)*cv.height;ctx.fillStyle=`rgba(${110+Math.sin(t+i)*30},0,0,0.07)`;ctx.beginPath();ctx.arc(x,y,80+Math.sin(t*2+i)*25,0,Math.PI*2);ctx.fill();}})();}
+function startNewGame(){Audio.resume();cancelAnimationFrame(menuAId);Audio.stopRandomCreaks();Object.assign(G,{chapter:0,scene:'',inventory:[],notes:[],flags:{},selectedItem:null});showScreen('cinematic-screen');Cinematic.play('intro',()=>{showScreen('game-screen');G.chapter=1;showCard('ACTE I','Exploration');setTimeout(()=>{loadRoom('fastfood_outside');renderInv();startLoop();Ctrl.init();gameRunning=true;},800);});}
 
-// ════════════════════════════════════════════════
-// START
-// ════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', init);
+// ════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════
+function init(){
+  const mCV=document.getElementById('menu-bg-canvas');mCV.width=window.innerWidth;mCV.height=window.innerHeight;
+  window.addEventListener('resize',()=>{mCV.width=window.innerWidth;mCV.height=window.innerHeight;});
+  // Fade overlay
+  fadeEl=document.createElement('div');fadeEl.style.cssText='position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:88;';document.body.appendChild(fadeEl);
+  // Init Three.js
+  initThree();
+  // FPS HUD elements
+  const gs=document.getElementById('game-screen');
+  // Interact hint
+  const iHint=document.createElement('div');iHint.id='i-hint';iHint.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);color:#c8b89a;font-family:Oswald,sans-serif;font-size:.85rem;letter-spacing:3px;background:rgba(0,0,0,.78);border:1px solid rgba(180,20,30,.4);border-top:1px solid #cc1122;padding:8px 18px;display:none;z-index:30;pointer-events:none;';gs.appendChild(iHint);
+  // Pointer lock hint
+  const pH=document.createElement('div');pH.id='ptr-hint';pH.style.cssText='position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.52);z-index:22;pointer-events:none;';pH.innerHTML='<div style="font-family:Oswald,sans-serif;font-size:1.1rem;letter-spacing:4px;color:#c8b89a;background:rgba(0,0,0,.85);border:1px solid rgba(180,20,30,.4);border-top:2px solid #cc1122;padding:22px 38px;text-align:center;"><div style="font-size:2.2rem;margin-bottom:10px">🔦</div>CLIQUEZ POUR JOUER<br><span style="font-size:.68rem;color:#888;letter-spacing:2px">ZQSD · Souris · E = Interagir · F = Lampe Torche · Esc = Pause</span></div>';gs.appendChild(pH);
+  // Crosshair
+  const xh=document.createElement('div');xh.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:14px;height:14px;z-index:21;pointer-events:none;';xh.innerHTML='<div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(255,255,255,0.45);transform:translateY(-50%)"></div><div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.45);transform:translateX(-50%)"></div><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%"></div>';gs.appendChild(xh);
+  // Wire buttons
+  document.getElementById('btn-new-game').addEventListener('click',startNewGame);
+  document.getElementById('btn-continue').addEventListener('click',loadSave);
+  document.getElementById('btn-options').addEventListener('click',()=>showScreen('options-screen'));
+  document.getElementById('btn-quit').addEventListener('click',()=>window.location.reload());
+  document.getElementById('btn-back-options').addEventListener('click',showMenu);
+  const vs=document.getElementById('volume-slider'),bs=document.getElementById('bright-slider');
+  vs.addEventListener('input',()=>{G.options.volume=vs.value/100;Audio.setVolume(G.options.volume);document.getElementById('volume-val').textContent=vs.value+'%';});
+  bs.addEventListener('input',()=>{G.options.brightness=bs.value/100;document.getElementById('bright-val').textContent=bs.value+'%';document.getElementById('vignette-overlay').style.opacity=1.2-G.options.brightness;});
+  document.getElementById('dialog-advance').addEventListener('click',advanceDialog);
+  document.getElementById('note-close-btn').addEventListener('click',closeNote);
+  document.getElementById('puzzle-cancel').addEventListener('click',closePuzzle);
+  document.getElementById('pause-btn').addEventListener('click',togglePause);
+  document.getElementById('pause-resume').addEventListener('click',togglePause);
+  document.getElementById('pause-save').addEventListener('click',()=>{saveGame();showToast('Partie sauvegardée !');});
+  document.getElementById('pause-main-menu').addEventListener('click',()=>{G.paused=false;document.getElementById('pause-menu').classList.add('hidden');if(loopId)cancelAnimationFrame(loopId);gameRunning=false;Audio.stopRandomCreaks();showMenu();});
+  document.getElementById('cinematic-skip-btn').addEventListener('click',()=>{if(typeof Cinematic!=='undefined'&&Cinematic.skip)Cinematic.skip();});
+  document.getElementById('epilogue-advance').addEventListener('click',()=>{});
+  if(localStorage.getItem('tc_save'))document.getElementById('btn-continue').disabled=false;
+  Audio.init();
+  // Loading
+  const bar=document.getElementById('loading-bar'),txt=document.getElementById('loading-text');
+  const steps=[[15,'Chargement du moteur 3D...'],[30,'Génération des salles Three.js...'],[48,'Calibrage de la lampe torche...'],[65,'Compilation des dialogues...'],[80,'Calibrage des détecteurs de croutons...'],[92,'Instanciation de Flamby...'],[100,'Prêt — Cliquez pour jouer.']];
+  let si=0;(function step(){if(si>=steps.length){setTimeout(()=>{document.getElementById('loading-screen').style.display='none';showMenu();},500);return;}const [p,m]=steps[si++];bar.style.width=p+'%';txt.textContent=m;setTimeout(step,260+Math.random()*360);})();
+}
+window.addEventListener('DOMContentLoaded',init);
